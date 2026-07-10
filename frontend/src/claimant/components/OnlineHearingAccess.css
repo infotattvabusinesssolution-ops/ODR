@@ -1,0 +1,224 @@
+.hearing-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  gap: 20px;
+}
+
+.hearing-header {
+  width: 100%;
+  background: linear-gradient(135deg, #ff9f1c 0%, #ff8c00 100%);
+  color: white;
+  padding: 15px 20px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.hearing-header h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.menu-icon {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: white;
+}
+
+.hearings-wrapper {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.hearings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hearing-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all 0.3s ease;
+}
+
+.hearing-card:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+.hearing-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hearing-info h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.hearing-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hearing-details p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #4a5568;
+  line-height: 1.4;
+}
+
+.hearing-details strong {
+  color: #2d3748;
+  font-weight: 600;
+}
+
+.hearing-status {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.status-scheduled {
+  background: #e6f2ff;
+  color: #0066cc;
+}
+
+.status-completed {
+  background: #e8f5e9;
+  color: #22863a;
+}
+
+.join-hearing-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  align-self: flex-start;
+}
+
+.join-hearing-btn:hover:not(.disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 102, 204, 0.3);
+}
+
+.join-hearing-btn:active:not(.disabled) {
+  transform: translateY(0);
+}
+
+.join-hearing-btn.disabled {
+  background: #cbd5e0;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .hearing-container {
+    padding: 15px;
+    gap: 15px;
+  }
+
+  .hearing-header h2 {
+    font-size: 1.1rem;
+  }
+
+  .hearing-card {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .hearing-info h3 {
+    font-size: 1rem;
+  }
+
+  .hearing-details p {
+    font-size: 0.85rem;
+  }
+
+  .hearing-status {
+    font-size: 0.8rem;
+    padding: 5px 10px;
+  }
+
+  .join-hearing-btn {
+    padding: 10px 16px;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .hearing-container {
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .hearing-header {
+    padding: 12px 15px;
+    gap: 10px;
+  }
+
+  .hearing-header h2 {
+    font-size: 0.95rem;
+  }
+
+  .hearings-wrapper {
+    max-width: 100%;
+  }
+
+  .hearings-list {
+    gap: 12px;
+  }
+
+  .hearing-card {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .hearing-info h3 {
+    font-size: 0.95rem;
+  }
+
+  .hearing-details p {
+    font-size: 0.8rem;
+  }
+
+  .hearing-status {
+    font-size: 0.75rem;
+    padding: 4px 8px;
+  }
+
+  .join-hearing-btn {
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    width: 100%;
+  }
+}

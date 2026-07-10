@@ -1,0 +1,303 @@
+.case-tracking-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  gap: 24px;
+  background-color: #f7fafc;
+  min-height: 100vh;
+}
+
+.tracking-header {
+  width: 100%;
+  background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+  color: white;
+  padding: 20px 24px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+}
+
+.tracking-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.menu-icon {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: white;
+}
+
+.cases-wrapper {
+  width: 100%;
+  margin: 0 auto;
+}
+
+.cases-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.case-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  border-left: 6px solid #cbd5e0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid #edf2f7;
+}
+
+.case-card:hover {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.case-card.scheduled {
+  border-left-color: #3b82f6;
+}
+
+.case-card.under-review {
+  border-left-color: #ff9f1c;
+}
+
+.case-card.closed {
+  border-left-color: #10b981;
+}
+
+.case-card.rejected {
+  border-left-color: #ef4444;
+}
+
+.case-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.case-info {
+  flex: 1;
+}
+
+.case-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.case-info h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1a202c;
+}
+
+.case-id-text {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #4a5568;
+}
+
+.status-badge {
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #f7fafc;
+  border: 1px solid #cbd5e0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status-scheduled {
+  color: #3b82f6;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.status-under-review {
+  color: #d97706;
+  background: #fffbeb;
+  border-color: #fef3c7;
+}
+
+.status-closed {
+  color: #059669;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.status-rejected {
+  color: #dc2626;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+/* Metadata Grid */
+.case-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  background-color: #f8fafc;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.meta-icon {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.meta-item strong {
+  color: #334155;
+}
+
+/* Modern Step Timeline */
+.case-timeline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  padding: 0 10px;
+  position: relative;
+}
+
+.timeline-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+  flex: 1;
+}
+
+.step-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #e2e8f0;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 700;
+  transition: all 0.3s ease;
+  border: 3px solid white;
+  box-shadow: 0 0 0 1px #cbd5e0;
+}
+
+.step-label {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  text-align: center;
+}
+
+.step-line {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  width: 100%;
+  height: 3px;
+  background-color: #e2e8f0;
+  z-index: -1;
+  transition: all 0.3s ease;
+}
+
+/* Active & Completed States */
+.timeline-step.completed .step-circle {
+  background-color: #10b981;
+  color: white;
+  box-shadow: 0 0 0 1px #10b981;
+}
+
+.timeline-step.completed .step-label {
+  color: #10b981;
+}
+
+.timeline-step.completed .step-line {
+  background-color: #10b981;
+}
+
+.timeline-step.active .step-circle {
+  background-color: #3b82f6;
+  color: white;
+  box-shadow: 0 0 0 1px #3b82f6;
+  transform: scale(1.1);
+}
+
+.timeline-step.active .step-label {
+  color: #3b82f6;
+  font-weight: 700;
+}
+
+/* Error (Rejected) State */
+.timeline-step.error .step-circle {
+  background-color: #ef4444;
+  color: white;
+  box-shadow: 0 0 0 1px #ef4444;
+}
+
+.timeline-step.error .step-label {
+  color: #ef4444;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .case-tracking-container {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .tracking-header h2 {
+    font-size: 1.25rem;
+  }
+
+  .case-card {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .case-meta-grid {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .step-circle {
+    width: 28px;
+    height: 28px;
+    font-size: 0.75rem;
+  }
+
+  .step-label {
+    font-size: 0.7rem;
+  }
+
+  .step-line {
+    top: 14px;
+  }
+}
