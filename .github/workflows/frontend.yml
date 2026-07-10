@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "frontend/**"
 
 jobs:
   deploy:
@@ -28,7 +26,4 @@ jobs:
             npm install
             npm run build
 
-            # If your static server serves the built files directly from frontend/dist,
-            # this is enough. If you need the output copied to a different webroot,
-            # add a copy/rsync step here (for example, to /var/www/html/odr).
-            echo "Frontend build completed on server."
+            echo "Frontend build completed."
