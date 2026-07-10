@@ -1,6 +1,6 @@
 const Express = require("express");
 const router = Express.Router();
-const { verifyToken } = require("../middlewares/auth.js");
+const { verifyToken } = require("../middlewares/Auth.js");
 const {
   legalResearch,
   contractReview,

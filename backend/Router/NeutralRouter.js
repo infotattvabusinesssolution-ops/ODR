@@ -15,7 +15,7 @@ const {
   updateNeutralProfile,
   updateNeutralPassword,
 } = require("../Controller/NeutralController");
-const { verifyToken, authorizeRoles } = require("../middlewares/auth.js");
+const { verifyToken, authorizeRoles } = require("../middlewares/Auth.js");
 
 const {
   uploadAwardDoc,

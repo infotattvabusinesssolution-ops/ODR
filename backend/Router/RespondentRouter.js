@@ -14,7 +14,7 @@ const {
   uploadDocumentForRespondent,
   getDocumentsByUser,
 } = require("../Controller/RespondentController");
-const { verifyToken, authorizeRoles } = require("../middlewares/auth.js");
+const { verifyToken, authorizeRoles } = require("../middlewares/Auth.js");
 
 router.post("/register", RespondentRegister);
 router.post("/login", RespondentLogin);

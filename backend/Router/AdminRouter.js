@@ -1,6 +1,6 @@
 const Express = require("express");
 const router = Express.Router();
-const { verifyToken, authorizeRoles } = require("../middlewares/auth.js");
+const { verifyToken, authorizeRoles } = require("../middlewares/Auth.js");
 const upload = require("../middlewares/multer");
 const {
   AdminUserRegister,
