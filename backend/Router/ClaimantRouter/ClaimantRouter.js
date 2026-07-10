@@ -22,7 +22,7 @@ const {
   updateClaimantProfile,
   updateClaimantPassword,
 } = require("../../Controller/ClaimantController/ClaimantController.js");
-const { verifyToken, authorizeRoles } = require("../../middlewares/auth.js");
+const { verifyToken, authorizeRoles } = require("../../middlewares/Auth.js");
 const upload = require("../../middlewares/multer.js");
 
 router.post("/register", ClaimantRegister);
