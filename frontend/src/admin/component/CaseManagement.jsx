@@ -17,7 +17,7 @@ import CaseFile from "../../admin/component/Modal/CaseFile.jsx";
 import EditFile from "../../admin/component/Modal/EditFile.jsx";
 import AllDetails from "../../admin/component/Modal/AllDetails.jsx";
 import ModalComponent from "../../admin/component/Modal/ModalComponent.jsx";
-import ViewFile from "./Modal/ViewFIle.jsx";
+import ViewFile from "./Modal/ViewFile.jsx";
 import { ClaimantApi } from "../../api/ClaimantApi";
 import AsignCase from "../../admin/component/Modal/AsignCase.jsx";
 
