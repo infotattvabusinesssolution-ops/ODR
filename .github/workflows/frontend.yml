@@ -1,0 +1,34 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy Frontend to VPS
+        uses: appleboy/ssh-action@v1.2.0
+
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+          script: |
+            cd /var/www/ODR
+            git pull origin main
+
+            cd frontend
+            npm install
+            npm run build
+
+            # If your static server serves the built files directly from frontend/dist,
+            # this is enough. If you need the output copied to a different webroot,
+            # add a copy/rsync step here (for example, to /var/www/html/odr).
+            echo "Frontend build completed on server."

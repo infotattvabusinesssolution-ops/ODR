@@ -1,0 +1,32 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy Backend to VPS
+        uses: appleboy/ssh-action@v1.2.0
+
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+          script: |
+            cd /var/www/ODR
+            git pull origin main
+
+            cd backend
+            npm install
+
+            pm2 restart odr-backend || pm2 start app.js --name odr-backend
+
+            pm2 save
