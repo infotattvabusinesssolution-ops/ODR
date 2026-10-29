@@ -4,6 +4,7 @@ const path = require("path");
 const Case = require("../models/Case");
 const upload = require("../middlewares/multer");
 const cloudinary = require("../config/cloudinary");
+const { sendDisputeEmails } = require("../Service/emailService");
 
 const fs = require("fs");
 
@@ -83,6 +84,25 @@ router.post("/contact", handleLandingUpload, async (req, res) => {
     });
 
     await newCase.save();
+
+    // Automatically send confirmation to filer and alert notification to admin via Hostinger SMTP
+    sendDisputeEmails({
+      caseId,
+      customerName: newCase.CustomersName,
+      customerEmail: newCase.CustomersEmail,
+      customerMobile: newCase.CustomersMobileNumber,
+      customerAadhar: newCase.CustomersAadharNumber,
+      disputeType: newCase.DisputeType,
+      disputeName: newCase.DisputeName,
+      disputeAmount: newCase.DisputeAmount,
+      oppositePartyName: newCase.oppositePartyName,
+      oppositePartyEmail: newCase.oppositePartyEmail,
+      oppositeMobile: newCase.oppositeMobile,
+      fileUrl: newCase.file,
+      createdAt: newCase.createdAt || new Date(),
+    }).catch((mailErr) => {
+      console.error("Background dispute email dispatch error:", mailErr.message);
+    });
     
     res.status(200).json({ success: true, message: "Dispute submitted successfully", caseId });
   } catch (error) {
