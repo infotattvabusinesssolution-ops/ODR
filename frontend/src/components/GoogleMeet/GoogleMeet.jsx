@@ -324,23 +324,13 @@ export default function GoogleMeet() {
   const [formDuration, setFormDuration] = useState("60 mins");
   const [formNeutral, setFormNeutral] = useState("Presiding Mediator");
 
-  // Auto-join if roomId parameter is in the URL
-  useEffect(() => {
-    if (roomId) {
-      const formattedTitle = `Hearing Chamber: ${roomId.toUpperCase()}`;
-      setChamberTitle(formattedTitle);
-      setInChamber(true);
-      setIsMinimized(false);
-      startCamera();
-      toast.info(`Joined chamber: ${roomId}`);
-    }
-  }, [roomId]);
 
   // Fetch real scheduled hearings from backend
   useEffect(() => {
     const fetchBackendHearings = async () => {
       try {
         const userEmail = localStorage.getItem("userEmail") || "";
+        if (!userEmail) return;
         const res = await axiosInstance.post("/respondent/get-hearing-by-caseId", {
           email: userEmail,
         });
@@ -435,7 +425,8 @@ export default function GoogleMeet() {
   const universalMeetingLink = `${window.location.origin}/meet/utkal-odr-room`;
 
   const handleCopyUniversalLink = () => {
-    navigator.clipboard.writeText(universalMeetingLink);
+    const linkToCopy = activeChamberLink || (activeRoomIdRef.current ? `${window.location.origin}/meet/${activeRoomIdRef.current}` : `${window.location.origin}/meet/${roomId || "utkal-odr-room"}`);
+    navigator.clipboard.writeText(linkToCopy);
     toast.success("Meeting link copied! Anyone with this link can join directly.");
   };
 
@@ -670,9 +661,18 @@ export default function GoogleMeet() {
     if (!localStream) {
       try {
         if (navigator.mediaDevices?.getUserMedia) {
-          localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          try {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          } catch (camErr) {
+            console.warn("Video+audio failed, trying audio-only fallback:", camErr);
+            try {
+              localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            } catch (micErr) {
+              console.warn("Audio-only also failed:", micErr);
+            }
+          }
           streamRef.current = localStream;
-          if (videoRef.current) {
+          if (videoRef.current && localStream) {
             videoRef.current.srcObject = localStream;
             videoRef.current.play?.().catch(() => {});
           }
@@ -705,15 +705,19 @@ export default function GoogleMeet() {
       "Counsel";
 
     // When socket connects, join the video room
-    socket.on("connect", () => {
-      console.log("Connected to video signaling server with socket ID:", socket.id);
+    const emitJoinRoom = () => {
+      console.log("Emitting join-video-room for:", chamberCode, "socket ID:", socket.id);
       socket.emit("join-video-room", {
         roomId: chamberCode,
         userId: currentUserId,
         userName: currentUserName,
         userRole: currentUserRole,
       });
-    });
+    };
+    socket.on("connect", emitJoinRoom);
+    if (socket.connected) {
+      emitJoinRoom();
+    }
 
     // 3. Newcomer receives list of existing peers in the room -> Initiates offer to each
     socket.on("all-users-in-room", async (clientsInRoom) => {
