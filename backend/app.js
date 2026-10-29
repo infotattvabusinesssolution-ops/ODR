@@ -220,7 +220,17 @@ io.on("connection", (socket) => {
 
       // Find all existing peer sockets in this room
       const clientsInRoom = Array.from(io.sockets.adapter.rooms.get(roomId) || [])
-        .filter((id) => id !== socket.id);
+        .filter((id) => id !== socket.id)
+        .map((peerId) => {
+          const peerSocket = io.sockets.sockets.get(peerId);
+          const peerData = peerSocket?.data?.videoRoom || {};
+          return {
+            socketId: peerId,
+            userId: peerData.userId || "",
+            userName: peerData.userName || "Participant",
+            userRole: peerData.userRole || "Counsel",
+          };
+        });
 
       // Send the list of existing peers to the newcomer so they can initiate WebRTC offers
       socket.emit("all-users-in-room", clientsInRoom);
@@ -268,6 +278,32 @@ io.on("connection", (socket) => {
       });
     } catch (err) {
       console.error("ice-candidate error:", err);
+    }
+  });
+
+  // Screen sharing signaling events
+  socket.on("screen-share-started", ({ roomId, presenterName }) => {
+    try {
+      if (roomId) {
+        socket.to(roomId).emit("screen-share-started", {
+          socketId: socket.id,
+          presenterName: presenterName || "Participant",
+        });
+      }
+    } catch (err) {
+      console.error("screen-share-started error:", err);
+    }
+  });
+
+  socket.on("screen-share-stopped", ({ roomId }) => {
+    try {
+      if (roomId) {
+        socket.to(roomId).emit("screen-share-stopped", {
+          socketId: socket.id,
+        });
+      }
+    } catch (err) {
+      console.error("screen-share-stopped error:", err);
     }
   });
 

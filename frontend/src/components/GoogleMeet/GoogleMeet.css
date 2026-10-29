@@ -2225,3 +2225,116 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ===== DYNAMIC WEBRTC & PRESENTATION ENHANCEMENTS ===== */
+.uom-peer-avatar-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+  color: #f8fafc;
+  padding: 24px;
+  text-align: center;
+  border-radius: 12px;
+}
+
+.uom-avatar-bubble {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: 700;
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.45);
+  border: 3px solid rgba(255, 255, 255, 0.2);
+}
+
+.uom-avatar-peer-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.uom-avatar-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 4px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.uom-presentation-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: #000000;
+  overflow: hidden;
+  position: relative;
+}
+
+.uom-presentation-main {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000000;
+  overflow: hidden;
+}
+
+.uom-presentation-strip {
+  height: 140px;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  overflow-x: auto;
+  z-index: 10;
+}
+
+.uom-strip-tile {
+  width: 170px;
+  height: 115px;
+  flex-shrink: 0;
+  position: relative;
+  background: #0f172a;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.uom-strip-tile video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.uom-stage-tile {
+  width: 100% !important;
+  height: 100% !important;
+  background: #000000 !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+.uom-stage-tile video {
+  object-fit: contain !important;
+  width: 100% !important;
+  height: 100% !important;
+}
