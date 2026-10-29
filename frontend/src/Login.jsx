@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Mail, Lock, CircleUserRound, ChevronDown, Phone, Box, MapPin, Search, Scale, FileText, Video, FileCheck, Infinity, Gavel, BookOpen, Briefcase, Landmark } from "lucide-react";
 import { toast } from "react-toastify";
 import { authApi } from "./api/authApi";
+import { API_BASE_URL } from "./api/axiosConfig";
 import { useAuth } from "./context/AuthContext";
 import { auth, googleProvider, signInWithPopup, RecaptchaVerifier, signInWithPhoneNumber } from "./config/firebase";
 import "./Login.css";
@@ -91,7 +92,6 @@ export default function Login({ getRole }) {
 
   const handleFirebaseLogin = async (idToken) => {
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3636";
       const response = await fetch(`${API_BASE_URL}/api/auth/firebase-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

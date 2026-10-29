@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 import "../components/Navbar.css";
+import { API_BASE_URL } from "../api/axiosConfig";
 
 export default function Navbar({ isOpen, setIsOpen }) {
   const navigate = useNavigate();
@@ -39,7 +40,6 @@ export default function Navbar({ isOpen, setIsOpen }) {
     const fetchAdminData = async () => {
       try {
         const token = localStorage.getItem("authToken");
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3636";
         const response = await fetch(`${API_BASE_URL}/respondent/data`, {
           method: "GET",
           headers: {

@@ -1,6 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
+const getApiBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+    if (isLocalhost) {
+      return import.meta.env.VITE_API_BASE_URL || 'http://localhost:3636';
+    }
+    const envUrl = import.meta.env.VITE_API_BASE_URL;
+    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+      return envUrl.replace(/\/$/, '');
+    }
+    return 'https://gokulanandachaudhurifoundation.com';
+  }
+  return 'https://gokulanandachaudhurifoundation.com';
+};
+
 function Contact() {
   const location = useLocation();
   const prefill = location.state || {};
@@ -95,7 +111,7 @@ function Contact() {
     setLoading(true);
 
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3636';
+      const API_BASE_URL = getApiBaseUrl();
       const sendData = new FormData();
       Object.keys(formData).forEach((key) => {
         sendData.append(key, formData[key]);
