@@ -114,7 +114,7 @@ export default function Profile() {
   });
 
   // Edit Profile / Password states
-  const [editForm, setEditForm] = useState({ name: "", phone: "" });
+  const [editForm, setEditForm] = useState({ name: "", phone: "", email: "" });
   const [passwordForm, setPasswordForm] = useState({ oldPassword: "", newPassword: "" });
   const [updatingProfile, setUpdatingProfile] = useState(false);
   const [updatingPassword, setUpdatingPassword] = useState(false);
@@ -133,6 +133,7 @@ export default function Profile() {
         setEditForm({
           name: resolvedName,
           phone: u.phone || localStorage.getItem("userPhone") || "",
+          email: u.email || localStorage.getItem("userEmail") || "",
         });
         localStorage.setItem("username", resolvedName);
         localStorage.setItem("userName", resolvedName);
@@ -202,6 +203,9 @@ export default function Profile() {
           }
           if (updated.phone) {
             localStorage.setItem("userPhone", updated.phone);
+          }
+          if (updated.email) {
+            localStorage.setItem("userEmail", updated.email);
           }
         }
         toast.success("Profile updated successfully!");
@@ -549,6 +553,7 @@ export default function Profile() {
                 setEditForm({
                   name: currentName,
                   phone: profileData?.phone || localStorage.getItem("userPhone") || "",
+                  email: profileData?.email || localStorage.getItem("userEmail") || "",
                 });
                 setOpenModal("EditProfile");
               }}
@@ -746,6 +751,27 @@ export default function Profile() {
                   outline: "none",
                   boxSizing: "border-box"
                 }}
+              />
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+              <label style={{ fontSize: "13px", fontWeight: "600", color: "#475569" }}>Email Address</label>
+              <input
+                type="email"
+                placeholder="Enter email address"
+                value={editForm.email || ""}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  backgroundColor: "#f8fafc",
+                  outline: "none",
+                  boxSizing: "border-box"
+                }}
+
               />
             </div>
 

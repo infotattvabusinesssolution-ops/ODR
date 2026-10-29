@@ -14,6 +14,10 @@ export const getApiBaseUrl = () => {
     const hostname = window.location.hostname;
     const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
 
+    if (isLocalhost) {
+      return 'http://localhost:3636';
+    }
+
     if (!isLocalhost) {
       const envUrl = import.meta.env.VITE_API_BASE_URL;
       if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {

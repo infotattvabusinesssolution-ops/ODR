@@ -771,7 +771,7 @@ const getClaimantDocumentsSecure = async (req, res) => {
 
 const updateClaimantProfile = async (req, res) => {
   try {
-    const { name, phone } = req.body;
+    const { name, phone, email } = req.body;
     const claimantId = req.claimant?._id || req.claimant?.id || req.user?._id || req.user?.id;
     if (!claimantId) {
       return res.status(401).json({ success: false, message: "Claimant session not found" });
