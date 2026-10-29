@@ -57,9 +57,6 @@ function Navbar() {
                             <Link className="nav-link" to="/#services">Services</Link>
                         </li>
                         <li className="nav-item">
-                            <Link className="nav-link" to="/#people">People</Link>
-                        </li>
-                        <li className="nav-item">
                             <Link className="nav-link" to="/blog">Blog</Link>
                         </li>
                         <li className="nav-item">
