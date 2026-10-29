@@ -81,6 +81,13 @@ function RemoteVideoTile({ peer, isPresentation = false }) {
     if (playPromise !== undefined) {
       playPromise.catch((err) => {
         console.warn("Remote video auto-play prevented:", err.message);
+        const unlock = () => {
+          videoEl.play().catch(() => {});
+          document.removeEventListener("click", unlock);
+          document.removeEventListener("touchstart", unlock);
+        };
+        document.addEventListener("click", unlock, { once: true });
+        document.addEventListener("touchstart", unlock, { once: true });
       });
     }
   }, [peer.stream, peer.trackUpdate]);
@@ -733,6 +740,9 @@ export default function GoogleMeet() {
     if (isInstant) {
       setShowInstantLinkPrompt(true);
     }
+    if (typeof window !== "undefined" && window.history && chamberCode) {
+      window.history.replaceState(null, "", `/meet/${chamberCode}`);
+    }
 
     // 1. Obtain local camera & microphone stream
     let localStream = streamRef.current;
@@ -767,7 +777,9 @@ export default function GoogleMeet() {
 
     const socket = io(getApiBaseUrl(), {
       withCredentials: true,
-      transports: ["websocket", "polling"],
+      transports: ["polling", "websocket"],
+      reconnectionAttempts: 15,
+      reconnectionDelay: 1000,
     });
     socketRef.current = socket;
 

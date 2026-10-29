@@ -175,7 +175,7 @@ export default function RealTimeChat({ role }) {
       if (window.io) {
         sInstance = window.io(socketUrl, {
           withCredentials: true,
-          transports: ["websocket", "polling"],
+          transports: ["polling", "websocket"],
         });
         sInstance.on("connect", () => {
           console.log("Socket.io connected successfully! ID:", sInstance.id);
