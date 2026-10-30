@@ -284,8 +284,9 @@ io.on("connection", (socket) => {
   // Screen sharing signaling events
   socket.on("screen-share-started", ({ roomId, presenterName }) => {
     try {
-      if (roomId) {
-        socket.to(roomId).emit("screen-share-started", {
+      const targetRoom = roomId || socket.data?.videoRoom?.roomId;
+      if (targetRoom) {
+        socket.to(targetRoom).emit("screen-share-started", {
           socketId: socket.id,
           presenterName: presenterName || "Participant",
         });
@@ -297,8 +298,9 @@ io.on("connection", (socket) => {
 
   socket.on("screen-share-stopped", ({ roomId }) => {
     try {
-      if (roomId) {
-        socket.to(roomId).emit("screen-share-stopped", {
+      const targetRoom = roomId || socket.data?.videoRoom?.roomId;
+      if (targetRoom) {
+        socket.to(targetRoom).emit("screen-share-stopped", {
           socketId: socket.id,
         });
       }
