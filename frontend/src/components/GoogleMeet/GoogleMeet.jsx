@@ -31,6 +31,11 @@ import {
   Download,
   MapPin,
   ArrowRight,
+  FileText,
+  Camera,
+  UploadCloud,
+  Smartphone,
+  Laptop,
 } from "lucide-react";
 import { toast } from "react-toastify";
 import axiosInstance, { getApiBaseUrl } from "../../api/axiosConfig";
@@ -51,20 +56,14 @@ const ICE_SERVERS = {
 
 function RemoteVideoTile({ peer, isPresentation = false }) {
   const rRef = useRef(null);
-  const audioRef = useRef(null);
   const [hasVideo, setHasVideo] = useState(false);
 
   useEffect(() => {
     const videoEl = rRef.current;
-    if (!videoEl || !peer?.stream) return;
+    if (!videoEl || !peer.stream) return;
 
     if (videoEl.srcObject !== peer.stream) {
       videoEl.srcObject = peer.stream;
-    }
-
-    if (audioRef.current && peer.stream && audioRef.current.srcObject !== peer.stream) {
-      audioRef.current.srcObject = peer.stream;
-      audioRef.current.play?.().catch(() => {});
     }
 
     const checkTracks = () => {
@@ -83,53 +82,39 @@ function RemoteVideoTile({ peer, isPresentation = false }) {
       peer.stream.onremovetrack = checkTracks;
     }
 
-    // Play video with immediate presentation autoplay fallback
-    const playVideo = () => {
-      const playPromise = videoEl.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          console.warn("Remote video auto-play prevented:", err.message);
-          // If browser blocks unmuted playback, mute presentation stream so screen displays immediately
-          videoEl.muted = true;
+    const playPromise = videoEl.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        console.warn("Remote video auto-play prevented:", err.message);
+        videoEl.muted = true;
+        videoEl.play().catch(() => {});
+        const unlock = () => {
+          videoEl.muted = false;
           videoEl.play().catch(() => {});
-          const unlock = () => {
-            if (!isPresentation) videoEl.muted = false;
-            videoEl.play().catch(() => {});
-            audioRef.current?.play?.().catch(() => {});
-            document.removeEventListener("click", unlock);
-            document.removeEventListener("touchstart", unlock);
-          };
-          document.addEventListener("click", unlock, { once: true });
-          document.addEventListener("touchstart", unlock, { once: true });
-        });
-      }
-    };
-
-    playVideo();
-    const interval = setInterval(checkTracks, 500);
-    return () => {
-      clearInterval(interval);
-    };
-  }, [peer?.stream, peer?.trackUpdate, isPresentation]);
+          document.removeEventListener("click", unlock);
+          document.removeEventListener("touchstart", unlock);
+        };
+        document.addEventListener("click", unlock, { once: true });
+        document.addEventListener("touchstart", unlock, { once: true });
+      });
+    }
+  }, [peer.stream, peer.trackUpdate]);
 
   return (
     <div className={`uom-video-tile ${isPresentation ? "uom-stage-tile" : ""}`}>
-      {/* Hidden audio element ensuring audio always plays cleanly even if video is presentation-muted */}
-      <audio ref={audioRef} autoPlay playsInline style={{ display: "none" }} />
       <video
         ref={rRef}
         autoPlay
         playsInline
-        muted={isPresentation}
         className={`uom-video-stream remote-stream ${isPresentation ? "screen-content" : ""}`}
-        style={{ display: isPresentation || hasVideo ? "block" : "none" }}
+        style={{ display: hasVideo ? "block" : "none" }}
       />
-      {!hasVideo && !isPresentation && (
+      {!hasVideo && (
         <div className="uom-peer-avatar-card">
           <div className="uom-avatar-bubble">
-            {(peer?.userName || "P").charAt(0).toUpperCase()}
+            {(peer.userName || "P").charAt(0).toUpperCase()}
           </div>
-          <span className="uom-avatar-peer-name">{peer?.userName || "Opposite Party"}</span>
+          <span className="uom-avatar-peer-name">{peer.userName || "Opposite Party"}</span>
           <span className="uom-avatar-status">
             <span className="uom-status-dot online" /> Audio Active
           </span>
@@ -137,7 +122,7 @@ function RemoteVideoTile({ peer, isPresentation = false }) {
       )}
       <div className="uom-participant-badge">
         <span className="uom-status-dot online" />
-        <span>{peer?.userName || "Participant"} ({peer?.userRole || "Counsel"})</span>
+        <span>{peer.userName || "Participant"} ({peer.userRole || "Counsel"})</span>
       </div>
     </div>
   );
@@ -157,6 +142,10 @@ export default function GoogleMeet() {
   // Instant Meeting & Shareable Link
   const [activeChamberLink, setActiveChamberLink] = useState("");
   const [showInstantLinkPrompt, setShowInstantLinkPrompt] = useState(false);
+  const [showPresentModal, setShowPresentModal] = useState(false);
+  const [cameraFacingMode, setCameraFacingMode] = useState("user");
+  const fileInputRef = useRef(null);
+  const isMobileDevice = typeof navigator !== "undefined" && (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (typeof window !== "undefined" && window.innerWidth < 768));
 
   // In-Call Chat Box (Everyone texts one by one)
   const [showChatDrawer, setShowChatDrawer] = useState(false);
@@ -218,7 +207,6 @@ export default function GoogleMeet() {
   const streamRef = useRef(null);
   const screenStreamRef = useRef(null);
   const pipVideoRef = useRef(null);
-  const stripVideoRef = useRef(null);
 
   // Week days
   const weekDays = [
@@ -444,7 +432,7 @@ export default function GoogleMeet() {
     fetchBackendHearings();
   }, []);
 
-  // Handle stream attachments for main video, screen share, presenter PIP, and strip video
+  // Handle stream attachments for main video, screen share, and presenter PIP
   useEffect(() => {
     if (isScreenSharing && screenStreamRef.current && videoRef.current) {
       if (videoRef.current.srcObject !== screenStreamRef.current) {
@@ -463,14 +451,7 @@ export default function GoogleMeet() {
         videoRef.current.play?.().catch(() => {});
       }
     }
-
-    if (stripVideoRef.current && streamRef.current && isVideoOn) {
-      if (stripVideoRef.current.srcObject !== streamRef.current) {
-        stripVideoRef.current.srcObject = streamRef.current;
-        stripVideoRef.current.play?.().catch(() => {});
-      }
-    }
-  }, [inChamber, isMinimized, isVideoOn, isScreenSharing, remotePeers, activePresenter]);
+  }, [inChamber, isMinimized, isVideoOn, isScreenSharing, remotePeers]);
 
   // Cleanup all media tracks & socket connections on unmount
   useEffect(() => {
@@ -625,7 +606,7 @@ export default function GoogleMeet() {
     return pc;
   };
 
-  // Screen Share Management (Stop & Toggle with WebRTC Track Replacement)
+  // Screen & Presentation Management (Desktop Screen Share, Mobile Document Present & Camera Flip)
   const stopScreenShare = () => {
     if (screenStreamRef.current) {
       screenStreamRef.current.getTracks().forEach((track) => {
@@ -637,36 +618,36 @@ export default function GoogleMeet() {
       screenStreamRef.current = null;
     }
     setIsScreenSharing(false);
+
+    if (activePresenter?.type === "document") {
+      if (socketRef.current && activeRoomIdRef.current) {
+        socketRef.current.emit("document-share-stopped", {
+          roomId: activeRoomIdRef.current,
+        });
+      }
+    } else {
+      if (socketRef.current && activeRoomIdRef.current) {
+        socketRef.current.emit("screen-share-stopped", {
+          roomId: activeRoomIdRef.current,
+        });
+      }
+    }
+
     setActivePresenter(null);
 
     // Revert WebRTC senders back to local camera track
     const camTrack = streamRef.current?.getVideoTracks()[0] || null;
-    for (const [peerSocketId, pc] of Object.entries(peerConnectionsRef.current)) {
+    Object.values(peerConnectionsRef.current).forEach(async (pc) => {
       try {
         const senders = pc.getSenders();
-        let videoSender = senders.find((s) => s.track && s.track.kind === "video");
-        if (!videoSender) {
-          const transceivers = pc.getTransceivers ? pc.getTransceivers() : [];
-          const vt = transceivers.find(
-            (t) => (t.sender?.track && t.sender.track.kind === "video") || (t.receiver?.track && t.receiver.track.kind === "video")
-          );
-          if (vt && vt.sender) {
-            videoSender = vt.sender;
-          }
-        }
+        const videoSender = senders.find((s) => s.track && s.track.kind === "video") || senders.find((s) => s.track === null);
         if (videoSender) {
-          videoSender.replaceTrack(camTrack).catch(() => {});
+          await videoSender.replaceTrack(camTrack);
         }
       } catch (e) {
         console.error("Error reverting peer track to camera:", e);
       }
-    }
-
-    if (socketRef.current && activeRoomIdRef.current) {
-      socketRef.current.emit("screen-share-stopped", {
-        roomId: activeRoomIdRef.current,
-      });
-    }
+    });
 
     // Switch videoRef back to camera if camera is on
     setTimeout(() => {
@@ -678,23 +659,15 @@ export default function GoogleMeet() {
           videoRef.current.srcObject = null;
         }
       }
-      if (stripVideoRef.current && isVideoOn && streamRef.current) {
-        stripVideoRef.current.srcObject = streamRef.current;
-        stripVideoRef.current.play?.().catch(() => {});
-      }
     }, 50);
 
-    toast.info("Screen sharing ended");
+    toast.info("Presentation ended");
   };
 
-  const toggleScreenShare = async () => {
-    if (isScreenSharing) {
-      stopScreenShare();
-      return;
-    }
-
+  const handleStartDesktopScreenShare = async () => {
+    setShowPresentModal(false);
     if (!navigator.mediaDevices?.getDisplayMedia) {
-      toast.warning("Display Media / Screen Sharing API is not supported in this browser.");
+      setShowPresentModal(true);
       return;
     }
 
@@ -710,69 +683,19 @@ export default function GoogleMeet() {
 
       const videoTrack = screenStream.getVideoTracks()[0];
       if (videoTrack) {
-        if ("contentHint" in videoTrack) {
-          videoTrack.contentHint = "detail";
-        }
         videoTrack.onended = () => {
           stopScreenShare();
         };
 
-        const myName = localStorage.getItem("username") || localStorage.getItem("userName") || localStorage.getItem("userEmail") || "You";
-
         // Replace or add video track on all active WebRTC peer connections
-        for (const [peerSocketId, pc] of Object.entries(peerConnectionsRef.current)) {
+        for (const pc of Object.values(peerConnectionsRef.current)) {
           try {
             const senders = pc.getSenders();
-            let videoSender = senders.find((s) => s.track && s.track.kind === "video");
-            if (!videoSender) {
-              const transceivers = pc.getTransceivers ? pc.getTransceivers() : [];
-              const vt = transceivers.find(
-                (t) => (t.sender?.track && t.sender.track.kind === "video") || (t.receiver?.track && t.receiver.track.kind === "video")
-              );
-              if (vt && vt.sender) {
-                videoSender = vt.sender;
-              }
-            }
-
+            const videoSender = senders.find((s) => s.track && s.track.kind === "video") || senders.find((s) => s.track === null);
             if (videoSender) {
-              const transceivers = pc.getTransceivers ? pc.getTransceivers() : [];
-              const vt = transceivers.find((t) => t.sender === videoSender);
-              let needsOffer = false;
-              if (vt && (vt.direction === "recvonly" || vt.direction === "inactive")) {
-                vt.direction = "sendrecv";
-                needsOffer = true;
-              }
               await videoSender.replaceTrack(videoTrack);
-              console.log(`[WebRTC] Replaced video track for peer ${peerSocketId} with screen share`);
-              if (needsOffer && pc.signalingState === "stable") {
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-                socketRef.current?.emit("video-offer", {
-                  toSocketId: peerSocketId,
-                  offer,
-                  senderInfo: {
-                    userId: localStorage.getItem("userId") || "",
-                    userName: myName,
-                    userRole: localStorage.getItem("userRole") || "Participant",
-                  },
-                });
-              }
             } else {
-              console.log(`[WebRTC] Adding new screen track for peer ${peerSocketId}`);
               pc.addTrack(videoTrack, screenStream);
-              if (pc.signalingState === "stable") {
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-                socketRef.current?.emit("video-offer", {
-                  toSocketId: peerSocketId,
-                  offer,
-                  senderInfo: {
-                    userId: localStorage.getItem("userId") || "",
-                    userName: myName,
-                    userRole: localStorage.getItem("userRole") || "Participant",
-                  },
-                });
-              }
             }
           } catch (e) {
             console.error("Error replacing peer track with screen share:", e);
@@ -784,16 +707,15 @@ export default function GoogleMeet() {
       const myName = localStorage.getItem("username") || localStorage.getItem("userName") || localStorage.getItem("userEmail") || "You";
       setActivePresenter({
         isSelf: true,
+        type: "screen",
         socketId: socketRef.current?.id,
         name: myName,
-        startedAt: Date.now(),
       });
 
       if (socketRef.current && activeRoomIdRef.current) {
         socketRef.current.emit("screen-share-started", {
           roomId: activeRoomIdRef.current,
           presenterName: myName,
-          socketId: socketRef.current?.id,
         });
       }
 
@@ -806,10 +728,6 @@ export default function GoogleMeet() {
           pipVideoRef.current.srcObject = streamRef.current;
           pipVideoRef.current.play?.().catch(() => {});
         }
-        if (stripVideoRef.current && streamRef.current && isVideoOn) {
-          stripVideoRef.current.srcObject = streamRef.current;
-          stripVideoRef.current.play?.().catch(() => {});
-        }
       }, 50);
 
       toast.success("You are now presenting your screen");
@@ -818,11 +736,115 @@ export default function GoogleMeet() {
         console.log("User cancelled screen share dialog");
       } else {
         console.error("Screen share error:", err);
-        toast.error(`Screen share failed: ${err.message || "Permission issue"}`);
+        toast.error("Screen share failed: " + (err.message || "Permission issue"));
       }
     }
   };
 
+  const toggleScreenShare = async () => {
+    if (isScreenSharing || activePresenter?.isSelf) {
+      stopScreenShare();
+      return;
+    }
+
+    // If mobile or browser lacks getDisplayMedia, open the versatile Presentation modal
+    if (!navigator.mediaDevices?.getDisplayMedia || isMobileDevice) {
+      setShowPresentModal(true);
+      return;
+    }
+
+    await handleStartDesktopScreenShare();
+  };
+
+  const handlePresentDocument = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const myName = localStorage.getItem("username") || localStorage.getItem("userName") || localStorage.getItem("userEmail") || "You";
+    const isImage = file.type.startsWith("image/");
+    const reader = new FileReader();
+
+    reader.onload = (uploadEvent) => {
+      const dataUrl = uploadEvent.target.result;
+      setShowPresentModal(false);
+      setIsScreenSharing(true);
+      setActivePresenter({
+        isSelf: true,
+        type: "document",
+        docUrl: dataUrl,
+        docName: file.name,
+        isImage,
+        name: myName,
+      });
+
+      if (socketRef.current && activeRoomIdRef.current) {
+        socketRef.current.emit("document-share-started", {
+          roomId: activeRoomIdRef.current,
+          docUrl: dataUrl,
+          docName: file.name,
+          isImage,
+          presenterName: myName,
+        });
+      }
+
+      toast.success("Presenting: " + file.name);
+    };
+
+    reader.readAsDataURL(file);
+    if (e.target) e.target.value = "";
+  };
+
+  const handleFlipCamera = async () => {
+    try {
+      const targetFacingMode = cameraFacingMode === "user" ? "environment" : "user";
+      let newStream;
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: targetFacingMode } },
+          audio: false,
+        });
+      } catch (modeErr) {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: targetFacingMode },
+          audio: false,
+        });
+      }
+
+      const newTrack = newStream.getVideoTracks()[0];
+      if (newTrack && streamRef.current) {
+        const oldTrack = streamRef.current.getVideoTracks()[0];
+        if (oldTrack) {
+          oldTrack.stop();
+          streamRef.current.removeTrack(oldTrack);
+        }
+        streamRef.current.addTrack(newTrack);
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = streamRef.current;
+          videoRef.current.play?.().catch(() => {});
+        }
+
+        for (const pc of Object.values(peerConnectionsRef.current)) {
+          try {
+            const senders = pc.getSenders();
+            const videoSender = senders.find((s) => s.track && s.track.kind === "video");
+            if (videoSender) {
+              await videoSender.replaceTrack(newTrack);
+            }
+          } catch (e) {
+            console.error("Error replacing camera track during flip:", e);
+          }
+        }
+
+        setCameraFacingMode(targetFacingMode);
+        setShowPresentModal(false);
+        toast.success(targetFacingMode === "environment" ? "Switched to Rear Document Camera" : "Switched to Front Camera");
+      }
+    } catch (err) {
+      console.error("Flip camera error:", err);
+      toast.error("Could not switch camera on this device.");
+    }
+  };
   // Launch Room & Initialize WebRTC Signaling via Socket.IO
   const handleLaunchChamber = async (title = "Virtual Hearing Chamber", isInstant = false, customRoomId = null) => {
     const chamberCode = customRoomId || (isInstant
@@ -955,10 +977,7 @@ export default function GoogleMeet() {
       console.log(`Received video-offer from ${fromSocketId}:`, senderInfo);
       try {
         const currentLocal = screenStreamRef.current || streamRef.current || localStream;
-        let pc = peerConnectionsRef.current[fromSocketId];
-        if (!pc || pc.signalingState === "closed") {
-          pc = await createPeerConnection(fromSocketId, currentLocal, false, senderInfo);
-        }
+        const pc = await createPeerConnection(fromSocketId, currentLocal, false, senderInfo);
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
 
         // Drain queued ICE candidates
@@ -1027,42 +1046,89 @@ export default function GoogleMeet() {
 
     // 8. Remote peer started screen sharing
     socket.on("screen-share-started", ({ socketId, presenterName }) => {
-      console.log(`Peer started sharing screen: ${presenterName} (${socketId})`);
-      toast.info(`${presenterName || "A participant"} is now presenting their screen`);
+      console.log("Peer started sharing screen:", presenterName, socketId);
+      toast.info((presenterName || "A participant") + " is now presenting their screen");
       setActivePresenter({
         isSelf: false,
+        type: "screen",
         socketId,
         name: presenterName || "Participant",
-        startedAt: Date.now(),
       });
-      // Force trigger remote peer tile update so screen presentation renders immediately
       setRemotePeers((prev) => {
-        const next = { ...prev };
-        const peerKey = next[socketId] ? socketId : Object.keys(next)[0];
-        if (peerKey && next[peerKey]) {
-          next[peerKey] = {
-            ...next[peerKey],
+        if (!prev[socketId]) return prev;
+        return {
+          ...prev,
+          [socketId]: {
+            ...prev[socketId],
             trackUpdate: Date.now(),
-          };
-        }
-        return next;
+          },
+        };
       });
     });
 
     // 9. Remote peer stopped screen sharing
     socket.on("screen-share-stopped", ({ socketId }) => {
-      console.log(`Peer stopped sharing screen (${socketId})`);
-      setActivePresenter((prev) => (prev?.socketId === socketId || !socketId ? null : prev));
-      setRemotePeers((prev) => {
-        const next = { ...prev };
-        Object.keys(next).forEach((k) => {
-          next[k] = { ...next[k], trackUpdate: Date.now() };
-        });
-        return next;
-      });
+      console.log("Peer stopped sharing screen:", socketId);
+      setActivePresenter((prev) => (prev?.socketId === socketId ? null : prev));
       toast.info("Screen presentation ended");
+      setRemotePeers((prev) => {
+        if (!prev[socketId]) return prev;
+        return {
+          ...prev,
+          [socketId]: {
+            ...prev[socketId],
+            trackUpdate: Date.now(),
+          },
+        };
+      });
     });
 
+    // 10. Remote peer started document / evidence sharing
+    socket.on("document-share-started", ({ socketId, docUrl, docName, isImage, presenterName }) => {
+      console.log("Peer started sharing document:", docName, socketId);
+      toast.info((presenterName || "A participant") + " is presenting: " + docName);
+      setActivePresenter({
+        isSelf: false,
+        type: "document",
+        socketId,
+        docUrl,
+        docName,
+        isImage,
+        name: presenterName || "Participant",
+      });
+    });
+
+    // 11. Remote peer stopped document sharing
+    socket.on("document-share-stopped", ({ socketId }) => {
+      console.log("Peer stopped document presentation:", socketId);
+      setActivePresenter((prev) => (prev?.socketId === socketId || prev?.type === "document" ? null : prev));
+      toast.info("Document presentation ended");
+    });
+
+    // 12. Sync active presentation state from server on join
+    socket.on("active-presentation-state", (pres) => {
+      if (pres) {
+        console.log("Received existing room presentation:", pres);
+        if (pres.type === "document") {
+          setActivePresenter({
+            isSelf: pres.socketId === socket.id,
+            type: "document",
+            socketId: pres.socketId,
+            docUrl: pres.docUrl,
+            docName: pres.docName,
+            isImage: pres.isImage,
+            name: pres.presenterName || "Participant",
+          });
+        } else {
+          setActivePresenter({
+            isSelf: pres.socketId === socket.id,
+            type: "screen",
+            socketId: pres.socketId,
+            name: pres.presenterName || "Participant",
+          });
+        }
+      }
+    });
     // 10. Remote peer left or disconnected
     socket.on("user-disconnected", ({ socketId, userId }) => {
       console.log(`Peer disconnected: ${socketId}`);
@@ -1292,14 +1358,6 @@ export default function GoogleMeet() {
   };
 
   const currentDayEvents = eventScheduleDays[activeDayTab] || [];
-
-  const presenterPeer = activePresenter && !activePresenter.isSelf
-    ? (remotePeers[activePresenter.socketId] ||
-       Object.values(remotePeers).find(
-         (p) => p.socketId === activePresenter.socketId || (activePresenter.userId && p.userId === activePresenter.userId)
-       ) ||
-       Object.values(remotePeers)[0])
-    : null;
 
   return (
     <div className="uom-container">
@@ -1834,7 +1892,27 @@ export default function GoogleMeet() {
 
                     {/* Main Presentation Stage */}
                     <div className="uom-presentation-main">
-                      {activePresenter.isSelf ? (
+                      {activePresenter.type === "document" ? (
+                        <div className="uom-presentation-doc-container">
+                          {activePresenter.isImage ? (
+                            <img
+                              src={activePresenter.docUrl}
+                              alt={activePresenter.docName || "Evidence Document"}
+                              className="uom-presentation-doc-img"
+                            />
+                          ) : (
+                            <iframe
+                              src={activePresenter.docUrl}
+                              title={activePresenter.docName || "Evidence Document"}
+                              className="uom-presentation-doc-frame"
+                            />
+                          )}
+                          <div className="uom-doc-title-bar">
+                            <FileText size={15} />
+                            <span>{activePresenter.docName || "Evidence Document"}</span>
+                          </div>
+                        </div>
+                      ) : activePresenter.isSelf ? (
                         <video
                           ref={videoRef}
                           autoPlay
@@ -1842,10 +1920,9 @@ export default function GoogleMeet() {
                           muted
                           className="uom-video-stream screen-content"
                         />
-                      ) : presenterPeer ? (
+                      ) : remotePeers[activePresenter.socketId] ? (
                         <RemoteVideoTile
-                          key={`presenter-${presenterPeer.socketId}-${activePresenter.startedAt || "pres"}`}
-                          peer={presenterPeer}
+                          peer={remotePeers[activePresenter.socketId]}
                           isPresentation={true}
                         />
                       ) : (
@@ -1856,7 +1933,7 @@ export default function GoogleMeet() {
                       )}
 
                       {/* Presenter PIP when you are presenting */}
-                      {activePresenter.isSelf && isVideoOn && (
+                      {activePresenter.isSelf && isVideoOn && activePresenter.type !== "document" && (
                         <div className="uom-presenter-pip" title="Your Video (Presenter)">
                           <video
                             ref={pipVideoRef}
@@ -1869,14 +1946,13 @@ export default function GoogleMeet() {
                         </div>
                       )}
                     </div>
-
                     {/* Participant Strip below presentation */}
                     <div className="uom-presentation-strip">
                       {/* Your webcam tile */}
                       <div className="uom-strip-tile">
                         {isVideoOn ? (
                           <video
-                            ref={activePresenter.isSelf ? stripVideoRef : videoRef}
+                            ref={activePresenter.isSelf ? pipVideoRef : videoRef}
                             autoPlay
                             playsInline
                             muted
@@ -1894,7 +1970,7 @@ export default function GoogleMeet() {
 
                       {/* Remote participants' tiles */}
                       {Object.values(remotePeers)
-                        .filter((p) => p.socketId !== activePresenter.socketId && p.socketId !== presenterPeer?.socketId)
+                        .filter((p) => p.socketId !== activePresenter.socketId)
                         .map((peer) => (
                           <div key={peer.socketId} className="uom-strip-tile">
                             <RemoteVideoTile peer={peer} isPresentation={false} />
@@ -2203,6 +2279,107 @@ export default function GoogleMeet() {
             >
               <PhoneOff size={14} />
             </button>
+          </div>
+        </div>
+      )}
+      {/* Present in Virtual Chamber Modal (Works on Mobile & Desktop) */}
+      {showPresentModal && (
+        <div className="uom-modal-overlay" onClick={() => setShowPresentModal(false)}>
+          <div className="uom-modal-card uom-present-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="uom-modal-header">
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <MonitorUp size={20} color="#3b82f6" />
+                <h3 style={{ margin: 0, fontSize: "17px", color: "#f8fafc" }}>Present in Virtual Chamber</h3>
+              </div>
+              <button
+                type="button"
+                className="uom-close-btn"
+                onClick={() => setShowPresentModal(false)}
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="uom-present-modal-body">
+              <p style={{ color: "#94a3b8", fontSize: "13px", lineHeight: "1.5", margin: "0 0 16px" }}>
+                Select how you would like to present evidence or screens to the hearing chamber:
+              </p>
+
+              <div className="uom-present-options-grid">
+                {/* Option 1: Document / Evidence File Picker */}
+                <div
+                  className="uom-present-option-card"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <div className="uom-option-icon" style={{ background: "rgba(59, 130, 246, 0.15)", color: "#3b82f6" }}>
+                    <UploadCloud size={24} />
+                  </div>
+                  <div className="uom-option-content">
+                    <h4>Present Document / Evidence</h4>
+                    <p>Share a PDF, contract, photo, or evidence file from your phone or computer.</p>
+                    <span className="uom-option-badge ready">Works on Mobile & Laptop</span>
+                  </div>
+                </div>
+
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  style={{ display: "none" }}
+                  accept="image/*,application/pdf"
+                  onChange={handlePresentDocument}
+                />
+
+                {/* Option 2: Rear Document Camera (Mobile Friendly) */}
+                <div
+                  className="uom-present-option-card"
+                  onClick={handleFlipCamera}
+                >
+                  <div className="uom-option-icon" style={{ background: "rgba(16, 185, 129, 0.15)", color: "#10b981" }}>
+                    <Camera size={24} />
+                  </div>
+                  <div className="uom-option-content">
+                    <h4>Switch to Rear Document Camera</h4>
+                    <p>Point your phone camera directly at physical paperwork, agreements, or ID cards.</p>
+                    <span className="uom-option-badge">Mobile Camera Flip</span>
+                  </div>
+                </div>
+
+                {/* Option 3: Desktop Screen Share */}
+                <div
+                  className={`uom-present-option-card ${isMobileDevice ? "disabled-mobile" : ""}`}
+                  onClick={() => {
+                    if (isMobileDevice) {
+                      toast.info("Full screen sharing is a desktop feature. Please join from a laptop to share your screen.");
+                    } else {
+                      handleStartDesktopScreenShare();
+                    }
+                  }}
+                >
+                  <div className="uom-option-icon" style={{ background: "rgba(245, 158, 11, 0.15)", color: "#f59e0b" }}>
+                    <Laptop size={24} />
+                  </div>
+                  <div className="uom-option-content">
+                    <h4>Desktop Screen Share</h4>
+                    <p>Stream your entire computer screen, window, or PowerPoint slide deck.</p>
+                    {isMobileDevice ? (
+                      <span className="uom-option-badge desktop-only">Requires Laptop / PC</span>
+                    ) : (
+                      <span className="uom-option-badge ready">Ready</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {isMobileDevice && (
+                <div className="uom-mobile-present-notice">
+                  <Smartphone size={16} />
+                  <span>
+                    <b>Mobile Note:</b> Android and iOS operating systems prevent web browsers from capturing your entire home screen for privacy reasons. Use <b>Present Document</b> or <b>Rear Camera</b> above, or open this meeting link on a Laptop / PC.
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

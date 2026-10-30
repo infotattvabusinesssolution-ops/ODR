@@ -235,6 +235,11 @@ io.on("connection", (socket) => {
       // Send the list of existing peers to the newcomer so they can initiate WebRTC offers
       socket.emit("all-users-in-room", clientsInRoom);
 
+      // Sync active presentation to newly joined participant
+      if (activePresentations.has(roomId)) {
+        socket.emit("active-presentation-state", activePresentations.get(roomId));
+      }
+
       // Notify everyone else in the room that a new peer connected
       socket.to(roomId).emit("user-connected", {
         socketId: socket.id,
@@ -281,11 +286,18 @@ io.on("connection", (socket) => {
     }
   });
 
+  const activePresentations = io.activePresentations || (io.activePresentations = new Map());
+
   // Screen sharing signaling events
   socket.on("screen-share-started", ({ roomId, presenterName }) => {
     try {
       const targetRoom = roomId || socket.data?.videoRoom?.roomId;
       if (targetRoom) {
+        activePresentations.set(targetRoom, {
+          type: "screen",
+          socketId: socket.id,
+          presenterName: presenterName || "Participant",
+        });
         socket.to(targetRoom).emit("screen-share-started", {
           socketId: socket.id,
           presenterName: presenterName || "Participant",
@@ -300,6 +312,7 @@ io.on("connection", (socket) => {
     try {
       const targetRoom = roomId || socket.data?.videoRoom?.roomId;
       if (targetRoom) {
+        activePresentations.delete(targetRoom);
         socket.to(targetRoom).emit("screen-share-stopped", {
           socketId: socket.id,
         });
@@ -309,11 +322,57 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Document / Evidence sharing signaling events (Full Mobile & Desktop Support)
+  socket.on("document-share-started", ({ roomId, docUrl, docName, isImage, presenterName }) => {
+    try {
+      const targetRoom = roomId || socket.data?.videoRoom?.roomId;
+      if (targetRoom) {
+        activePresentations.set(targetRoom, {
+          type: "document",
+          socketId: socket.id,
+          docUrl,
+          docName,
+          isImage,
+          presenterName: presenterName || "Participant",
+        });
+        socket.to(targetRoom).emit("document-share-started", {
+          socketId: socket.id,
+          docUrl,
+          docName,
+          isImage,
+          presenterName: presenterName || "Participant",
+        });
+      }
+    } catch (err) {
+      console.error("document-share-started error:", err);
+    }
+  });
+
+  socket.on("document-share-stopped", ({ roomId }) => {
+    try {
+      const targetRoom = roomId || socket.data?.videoRoom?.roomId;
+      if (targetRoom) {
+        activePresentations.delete(targetRoom);
+        socket.to(targetRoom).emit("document-share-stopped", {
+          socketId: socket.id,
+        });
+      }
+    } catch (err) {
+      console.error("document-share-stopped error:", err);
+    }
+  });
+
   socket.on("leave-video-room", ({ roomId, userId }) => {
     try {
-      if (roomId) {
-        socket.leave(roomId);
-        socket.to(roomId).emit("user-disconnected", {
+      const targetRoom = roomId || socket.data?.videoRoom?.roomId;
+      if (targetRoom) {
+        if (activePresentations.get(targetRoom)?.socketId === socket.id) {
+          activePresentations.delete(targetRoom);
+          socket.to(targetRoom).emit("screen-share-stopped", { socketId: socket.id });
+          socket.to(targetRoom).emit("document-share-stopped", { socketId: socket.id });
+        }
+        socket.leave(targetRoom);
+        socket.to(targetRoom).emit("user-disconnected", {
           socketId: socket.id,
           userId,
         });
@@ -329,6 +388,11 @@ io.on("connection", (socket) => {
     if (socket.data && socket.data.videoRoom) {
       const { roomId, userId } = socket.data.videoRoom;
       if (roomId) {
+        if (activePresentations.get(roomId)?.socketId === socket.id) {
+          activePresentations.delete(roomId);
+          socket.to(roomId).emit("screen-share-stopped", { socketId: socket.id });
+          socket.to(roomId).emit("document-share-stopped", { socketId: socket.id });
+        }
         socket.to(roomId).emit("user-disconnected", {
           socketId: socket.id,
           userId,

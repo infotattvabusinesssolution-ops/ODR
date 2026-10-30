@@ -2338,3 +2338,158 @@
   width: 100% !important;
   height: 100% !important;
 }
+
+/* Presentation Modal & Document Sharing */
+.uom-present-modal {
+  max-width: 520px !important;
+  width: 90% !important;
+  background: #0f172a !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6) !important;
+  border-radius: 14px !important;
+}
+
+.uom-present-modal-body {
+  padding: 16px 20px 24px;
+}
+
+.uom-present-options-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.uom-present-option-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 14px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.uom-present-option-card:hover {
+  background: rgba(51, 65, 85, 0.85);
+  border-color: rgba(59, 130, 246, 0.5);
+  transform: translateY(-1px);
+}
+
+.uom-present-option-card.disabled-mobile {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.uom-option-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.uom-option-content {
+  flex: 1;
+}
+
+.uom-option-content h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.uom-option-content p {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.uom-option-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+.uom-option-badge.desktop-only {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+.uom-option-badge.ready {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+.uom-mobile-present-notice {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: rgba(30, 41, 59, 0.9);
+  border-left: 3px solid #3b82f6;
+  border-radius: 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.uom-mobile-present-notice svg {
+  color: #3b82f6;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Document Presentation Stage */
+.uom-presentation-doc-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: #0b0f19;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.uom-presentation-doc-img {
+  max-width: 95%;
+  max-height: 85%;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.uom-presentation-doc-frame {
+  width: 95%;
+  height: 85%;
+  border: none;
+  background: #ffffff;
+  border-radius: 6px;
+}
+
+.uom-doc-title-bar {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 500;
+  background: rgba(15, 23, 42, 0.8);
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
