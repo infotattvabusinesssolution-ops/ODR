@@ -27,6 +27,7 @@ function Home() {
 
 
 
+    <div id="about" style={{ position: 'relative', top: 0 }}></div>
     <section className="about-section" id="home">
         {/* Background Video */}
         <video className="bg-video" autoPlay muted loop playsInline>

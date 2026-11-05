@@ -29,6 +29,14 @@ server {
     root /var/www/odr-landingpage/dist;
     index index.html;
 
+    # Immediate 301 redirects for legacy .html pages previously indexed by Google
+    location = /odr-blogs.html {
+        return 301 https://utkalodr.com/blog;
+    }
+    location = /odr-act.html {
+        return 301 https://utkalodr.com/odr-act;
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }
