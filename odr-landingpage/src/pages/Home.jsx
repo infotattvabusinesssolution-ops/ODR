@@ -30,8 +30,9 @@ function Home() {
     <div id="about" style={{ position: 'relative', top: 0 }}></div>
     <section className="about-section" id="home">
         {/* Background Video */}
-        <video className="bg-video" autoPlay muted loop playsInline>
-            <source src="assets/Video Project 3.mp4" type="video/mp4" />
+        <video className="bg-video" autoPlay muted loop playsInline preload="auto">
+            <source src="/assets/bg-video.mp4" type="video/mp4" />
+            <source src="/assets/Video Project 3.mp4" type="video/mp4" />
             Your browser does not support the video tag.
         </video>
 
