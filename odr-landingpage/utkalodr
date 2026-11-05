@@ -1,9 +1,40 @@
+# 1) Redirect all HTTP traffic (both non-www and www) to HTTPS https://utkalodr.com
 server {
     listen 80;
-    server_name utkalodr.com www.utkalodr.com 191.215.37.241;
+    listen [::]:80;
+    server_name utkalodr.com www.utkalodr.com;
+    return 301 https://utkalodr.com$request_uri;
+}
+
+# 2) Redirect HTTPS www (https://www.utkalodr.com) to primary https://utkalodr.com
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name www.utkalodr.com;
+
+    ssl_certificate /etc/letsencrypt/live/utkalodr.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/utkalodr.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+    return 301 https://utkalodr.com$request_uri;
+}
+
+# 3) Primary HTTPS server block for utkalodr.com
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name utkalodr.com 191.215.37.241;
+
     root /var/www/odr-landingpage/dist;
     index index.html;
+
     location / {
-        try_files  / /index.html;
+        try_files $uri $uri/ /index.html;
     }
+
+    ssl_certificate /etc/letsencrypt/live/utkalodr.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/utkalodr.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
 }
