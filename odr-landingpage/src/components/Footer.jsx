@@ -10,12 +10,7 @@ function Footer() {
                         <img
                             src="/assets/logo.png"
                             alt="UTKAL ODR - Online Dispute Resolution"
-                            style={{
-                                height: "54px",
-                                width: "auto",
-                                objectFit: "contain",
-                                display: "block"
-                            }}
+                            className="footer-logo-img"
                         />
                     </div>
                     <h4>About UTKAL ODR</h4>

@@ -1108,6 +1108,13 @@ footer::before {
   text-align: left;
 }
 
+.footer-logo-img {
+  height: 54px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+
 .footer-section h4 {
   margin-bottom: 1rem;
   font-size: 1.1rem;
@@ -1189,6 +1196,17 @@ footer::before {
   
   .footer-section p {
     text-align: center !important;
+  }
+
+  .footer-logo {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+  }
+
+  .footer-logo-img {
+    margin: 0 auto !important;
   }
 
   .cta h2 {
