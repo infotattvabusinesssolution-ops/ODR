@@ -91,7 +91,7 @@ export default function NewHearing({ newHearingData, onClose }) {
             </div>
 
             <div className="form-group">
-              <label>Hearing Type</label>
+              <label>Meetings Type</label>
               <select
                 name="hearingType"
                 value={formData.hearingType}
@@ -100,10 +100,9 @@ export default function NewHearing({ newHearingData, onClose }) {
                 required
               >
                 <option value="">Select Type</option>
-                <option value="InitialHearing">Initial Hearing</option>
-                <option value="PreTrialConference">Pre-trial Conference</option>
-                <option value="EvidenceHearing">Evidence Hearing</option>
-                <option value="FinalHearing">Final Hearing</option>
+                <option value="Joint session">Joint session</option>
+                <option value="One to One">One to One</option>
+                <option value="Evidence walk through">Evidence walk through</option>
               </select>
             </div>
             <div className="form-group text-black">

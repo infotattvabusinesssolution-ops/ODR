@@ -22,7 +22,7 @@ export default function ScheduleHearingForm({ onClose, onSuccess }) {
   const [formData, setFormData] = useState({
     caseName: "",
     caseId: "",
-    hearingType: "FinalHearing",
+    hearingType: "Joint session",
     date: new Date().toISOString().slice(0, 10),
     time: "10:30",
     duration: "1.5",
@@ -204,11 +204,11 @@ export default function ScheduleHearingForm({ onClose, onSuccess }) {
           </div>
         </div>
 
-        {/* Hearing Type & Judge */}
+        {/* Meetings Type & Judge */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
           <div>
             <label style={{ display: "block", fontSize: "13px", fontWeight: "600", color: "#334155", marginBottom: "4px" }}>
-              Hearing Type *
+              Meetings Type *
             </label>
             <select
               name="hearingType"
@@ -225,11 +225,9 @@ export default function ScheduleHearingForm({ onClose, onSuccess }) {
                 backgroundColor: "#fff",
               }}
             >
-              <option value="InitialHearing">Initial Hearing</option>
-              <option value="PreTrialConference">Pre-trial Conference</option>
-              <option value="EvidenceHearing">Evidence Scrutiny Hearing</option>
-              <option value="FinalHearing">Final Award Hearing</option>
-              <option value="SettlementConference">Settlement Conference</option>
+              <option value="Joint session">Joint session</option>
+              <option value="One to One">One to One</option>
+              <option value="Evidence walk through">Evidence walk through</option>
             </select>
           </div>
 

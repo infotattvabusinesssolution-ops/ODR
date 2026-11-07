@@ -151,7 +151,7 @@ export default function ScheduleHearing({ onClose }) {
               </select>
             </div>
             <div className="form-group">
-              <label>Session Type</label>
+              <label>Meetings Type</label>
               <select
                 name="hearingType"
                 value={formData.hearingType}
@@ -160,10 +160,9 @@ export default function ScheduleHearing({ onClose }) {
                 required
               >
                 <option value="">Select Type</option>
-                <option value="InitialHearing">Initial Session / Consultation</option>
-                <option value="PreTrialConference">Joint Mediation Session</option>
-                <option value="EvidenceHearing">Evidence & Review Session</option>
-                <option value="FinalHearing">Final Resolution Session</option>
+                <option value="Joint session">Joint session</option>
+                <option value="One to One">One to One</option>
+                <option value="Evidence walk through">Evidence walk through</option>
               </select>
             </div>
             <div className="form-group text-black">

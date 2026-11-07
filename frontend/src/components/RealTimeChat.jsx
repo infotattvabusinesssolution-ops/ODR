@@ -4,7 +4,7 @@ import axiosInstance, { getApiBaseUrl } from "../api/axiosConfig";
 
 const JOINT_CHANNEL = {
   _id: "joint-3s-thread",
-  name: "3S Joint Discussion (Sandeep, Santosh & Srittam)",
+  name: "3S Joint Discussion (Santosh, Sandeep & Srittam)",
   role: "joint",
   isJoint: true,
 };
@@ -112,7 +112,7 @@ export default function RealTimeChat({ role }) {
         }
 
         if (loadedCases.length === 0) {
-          const demoCase = { caseId: "CASE-2026-0021", DisputeName: "Sandeep Dhansing Deore vs Santosh Baral" };
+          const demoCase = { caseId: "CASE-2026-0021", DisputeName: "Santosh Baral (SJTS Services Pvt Ltd) vs. Sandeep Dhansing Deore" };
           loadedCases = [demoCase];
         }
 
@@ -121,7 +121,7 @@ export default function RealTimeChat({ role }) {
         setSelectedCaseId(firstId);
       } catch (err) {
         console.error("Failed to load user cases:", err);
-        const demoCase = { caseId: "CASE-2026-0021", DisputeName: "Sandeep Dhansing Deore vs Santosh Baral" };
+        const demoCase = { caseId: "CASE-2026-0021", DisputeName: "Santosh Baral (SJTS Services Pvt Ltd) vs. Sandeep Dhansing Deore" };
         setCases([demoCase]);
         setSelectedCaseId("CASE-2026-0021");
       } finally {
@@ -532,7 +532,7 @@ export default function RealTimeChat({ role }) {
             <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
               <span style={{ fontWeight: "700", fontSize: "13px", color: isJointActive ? "#92400e" : "#1e293b" }}>3S Joint Discussion</span>
               <span style={{ fontSize: "11px", color: isJointActive ? "#b45309" : "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                Sandeep · Santosh · Srittam
+                Santosh · Sandeep · Srittam
               </span>
               <span style={{ ...styles.badge("joint"), marginTop: "4px" }}>Active Joint Session</span>
             </div>

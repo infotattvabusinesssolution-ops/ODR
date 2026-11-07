@@ -1590,7 +1590,7 @@ export default function GoogleMeet() {
               </div>
 
               <div className="uom-form-group">
-                <label className="uom-form-label">Hearing Type</label>
+                <label className="uom-form-label">Meetings Type</label>
                 <select
                   className="uom-form-select"
                   value={formType}
