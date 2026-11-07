@@ -147,6 +147,35 @@ export default function GoogleMeet() {
   const fileInputRef = useRef(null);
   const isMobileDevice = typeof navigator !== "undefined" && (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (typeof window !== "undefined" && window.innerWidth < 768));
 
+  // AI Meeting Summary State
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [meetingSummary, setMeetingSummary] = useState(null);
+
+  const handleGenerateSummary = async () => {
+    setShowSummaryModal(true);
+    setSummaryLoading(true);
+    try {
+      const activeCaseId = activeRoomIdRef.current || activeRoomId || roomId || "CASE-2026-0021";
+      const inCallTranscript = chatMessages.map(m => `[${m.role || "Party"}] ${m.sender || "Participant"}: ${m.text}`).join("\n");
+      const res = await axiosInstance.post("/api/legal-ai/meeting-summary", {
+        caseId: activeCaseId,
+        transcript: inCallTranscript,
+        meetingNotes: `Joint session virtual mediation held for Case #${activeCaseId} between Claimant Sandeep Dhansing Deore, Respondent Santosh Baral, and Presiding Mediator Adv. Srittam Das.`
+      });
+      if (res.data?.success && res.data.data) {
+        setMeetingSummary(res.data.data);
+      } else {
+        toast.error("Could not retrieve AI meeting summary.");
+      }
+    } catch (err) {
+      console.error("AI summary error:", err);
+      toast.error("Failed to generate AI meeting summary: " + (err.response?.data?.message || err.message));
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
   // In-Call Chat Box (Everyone texts one by one)
   const [showChatDrawer, setShowChatDrawer] = useState(false);
   const [chatMessageText, setChatMessageText] = useState("");
@@ -1648,6 +1677,31 @@ export default function GoogleMeet() {
                 </button>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                {/* AI Meeting Summary Top Button */}
+                <button
+                  type="button"
+                  onClick={handleGenerateSummary}
+                  title="Generate structured AI summary of this meeting"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: "linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)",
+                    color: "#ffffff",
+                    border: "1px solid rgba(255,255,255,0.3)",
+                    padding: "5px 12px",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 8px rgba(124, 58, 237, 0.4)",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  <Sparkles size={14} color="#fde047" />
+                  <span>AI Meeting Summary</span>
+                </button>
+
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#10b981" }}>
                   <span className="uom-status-dot" />
                   <span>Connected • E2E Encrypted</span>
@@ -2064,6 +2118,19 @@ export default function GoogleMeet() {
                 <MessageSquare size={20} />
               </button>
 
+              {/* Icon: AI Meeting Summary */}
+              <button
+                className={`uom-ctrl-btn ${showSummaryModal ? "active" : ""}`}
+                onClick={handleGenerateSummary}
+                title="AI Meeting Summary (Summarize proceedings with AI)"
+                style={{
+                  backgroundColor: showSummaryModal ? "#7c3aed" : "rgba(124, 58, 237, 0.25)",
+                  borderColor: "#7c3aed"
+                }}
+              >
+                <Sparkles size={20} color={showSummaryModal ? "#ffffff" : "#c4b5fd"} />
+              </button>
+
               {/* Leave call */}
               <button
                 className="uom-ctrl-btn leave"
@@ -2073,6 +2140,179 @@ export default function GoogleMeet() {
                 <PhoneOff size={16} />
                 <span>Leave</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= AI MEETING SUMMARY MODAL ================= */}
+      {showSummaryModal && (
+        <div className="uom-modal-overlay" style={{ zIndex: 100000 }}>
+          <div style={{
+            background: "#0f172a",
+            color: "#f8fafc",
+            width: "92%",
+            maxWidth: "760px",
+            maxHeight: "85vh",
+            borderRadius: "16px",
+            border: "1px solid #334155",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            boxShadow: "0 25px 60px rgba(0,0,0,0.6)",
+            fontFamily: "'Inter', sans-serif"
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: "16px 24px",
+              borderBottom: "1px solid #334155",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              background: "#1e293b"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <Sparkles size={20} color="#c084fc" />
+                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700" }}>AI Joint Session Meeting Summary</h3>
+                <span style={{ fontSize: "11px", backgroundColor: "#7c3aed", color: "#fff", padding: "3px 8px", borderRadius: "10px", fontWeight: "600" }}>
+                  {roomId || "CASE-2026-0021"}
+                </span>
+              </div>
+              <button
+                onClick={() => setShowSummaryModal(false)}
+                style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", display: "flex", alignItems: "center" }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "16px" }}>
+              {summaryLoading ? (
+                <div style={{ textAlign: "center", padding: "50px 20px" }}>
+                  <Sparkles size={40} color="#a855f7" style={{ margin: "0 auto 16px", animation: "pulse 1.5s infinite" }} />
+                  <h4 style={{ margin: "0 0 8px 0", fontSize: "16px", color: "#f8fafc" }}>Synthesizing Proceedings with AI...</h4>
+                  <p style={{ margin: 0, fontSize: "13px", color: "#94a3b8", maxWidth: "460px", marginInline: "auto" }}>
+                    Analyzing discussion between Claimant (Sandeep), Respondent (Santosh), and Mediator (Adv. Srittam Das), along with SOW & Invoice evidence.
+                  </p>
+                </div>
+              ) : meetingSummary ? (
+                <>
+                  {/* Executive Overview */}
+                  <div style={{ background: "#1e293b", padding: "16px", borderRadius: "12px", borderLeft: "4px solid #a855f7", border: "1px solid #334155" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 700, color: "#c084fc", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
+                      Executive Overview & Case Status
+                    </div>
+                    <p style={{ margin: 0, fontSize: "13px", lineHeight: "1.6", color: "#e2e8f0", whiteSpace: "pre-line" }}>
+                      {meetingSummary.executiveSummary}
+                    </p>
+                  </div>
+
+                  {/* Submissions Grid */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                    <div style={{ background: "#1e293b", padding: "14px", borderRadius: "10px", border: "1px solid #334155" }}>
+                      <div style={{ fontSize: "11px", fontWeight: 700, color: "#60a5fa", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>
+                        Claimant (Sandeep Dhansing Deore)
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "#cbd5e1", lineHeight: "1.5" }}>
+                        {meetingSummary.claimantSubmissions?.map((s, i) => <li key={i} style={{ marginBottom: "4px" }}>{s}</li>)}
+                      </ul>
+                    </div>
+
+                    <div style={{ background: "#1e293b", padding: "14px", borderRadius: "10px", border: "1px solid #334155" }}>
+                      <div style={{ fontSize: "11px", fontWeight: 700, color: "#34d399", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>
+                        Respondent (Santosh Baral / SJTS)
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "#cbd5e1", lineHeight: "1.5" }}>
+                        {meetingSummary.respondentSubmissions?.map((s, i) => <li key={i} style={{ marginBottom: "4px" }}>{s}</li>)}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Mediator Guidance & Settlement Framework */}
+                  <div style={{ background: "#1e293b", padding: "14px", borderRadius: "10px", border: "1px solid #334155" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 700, color: "#fbbf24", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>
+                      Mediator Observations & Settlement Directives (Adv. Srittam Das)
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "#cbd5e1", lineHeight: "1.5" }}>
+                      {meetingSummary.mediatorObservations?.map((s, i) => <li key={i} style={{ marginBottom: "4px" }}>{s}</li>)}
+                      {meetingSummary.settlementFramework?.map((s, i) => <li key={i} style={{ marginBottom: "4px" }}><strong>Settlement Pathway:</strong> {s}</li>)}
+                    </ul>
+                  </div>
+                </>
+              ) : (
+                <div style={{ textAlign: "center", padding: "30px", color: "#94a3b8" }}>
+                  <p>Click "Generate AI Summary" to create the meeting minutes.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: "14px 24px",
+              borderTop: "1px solid #334155",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              background: "#1e293b"
+            }}>
+              <button
+                type="button"
+                onClick={handleGenerateSummary}
+                disabled={summaryLoading}
+                style={{
+                  background: "transparent",
+                  color: "#c084fc",
+                  border: "1px solid #7c3aed",
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  cursor: "pointer"
+                }}
+              >
+                {summaryLoading ? "Summarizing..." : "Regenerate Summary"}
+              </button>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (meetingSummary) {
+                      const text = `=== ODR AI MEETING SUMMARY ===\nCase: ${meetingSummary.caseId}\nDispute: ${meetingSummary.disputeTitle}\nSession Date: ${meetingSummary.sessionDate}\n\nEXECUTIVE SUMMARY:\n${meetingSummary.executiveSummary}\n\nCLAIMANT:\n${(meetingSummary.claimantSubmissions || []).join("\n")}\n\nRESPONDENT:\n${(meetingSummary.respondentSubmissions || []).join("\n")}\n\nMEDIATOR OBSERVATIONS & NEXT STEPS:\n${(meetingSummary.mediatorObservations || []).join("\n")}\n${(meetingSummary.settlementFramework || []).join("\n")}`;
+                      navigator.clipboard.writeText(text);
+                      toast.success("AI Meeting Summary copied to clipboard!");
+                    }
+                  }}
+                  style={{
+                    background: "#334155",
+                    color: "#ffffff",
+                    border: "none",
+                    padding: "8px 16px",
+                    borderRadius: "8px",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    cursor: "pointer"
+                  }}
+                >
+                  Copy Summary
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSummaryModal(false)}
+                  style={{
+                    background: "#7c3aed",
+                    color: "#ffffff",
+                    border: "none",
+                    padding: "8px 18px",
+                    borderRadius: "8px",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    cursor: "pointer"
+                  }}
+                >
+                  Done
+                </button>
+              </div>
             </div>
           </div>
         </div>
