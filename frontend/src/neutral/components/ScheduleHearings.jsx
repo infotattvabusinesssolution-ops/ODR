@@ -18,6 +18,24 @@ import { documentDetailsApi } from "../../api/AdminApi";
 import { toast } from "react-toastify";
 import axiosInstance from "../../api/axiosConfig";
 
+const resolveMeetLink = (link, caseId) => {
+  const defaultLink = `/chamber/${caseId || "CASE-2026-0021"}`;
+  if (!link) return defaultLink;
+
+  if (typeof window !== "undefined") {
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    if (isLocalhost && (link.includes("utkalodr.com") || link.includes("gokulanandachaudhurifoundation.com"))) {
+      try {
+        const parsed = new URL(link);
+        return `${window.location.origin}${parsed.pathname}${parsed.search}`;
+      } catch (e) {
+        return link;
+      }
+    }
+  }
+  return link;
+};
+
 export default function ScheduleHearings() {
   const [openModal, setOpenModal] = useState(null);
   const [newHearingData, setNewHearingData] = useState([]);
@@ -366,21 +384,30 @@ export default function ScheduleHearings() {
               </div>
 
               <div style={styles.hearingActions}>
-                <a
-                  href={hearing.meetLink || `https://meet.google.com/odr-${(hearing.caseId || 'chamber').replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={styles.actionButton("#0066cc")}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#0066cc33";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#0066cc22";
-                  }}
-                >
-                  <Video size={14} />
-                  Join Google Meet
-                </a>
+                {(() => {
+                  const targetLink = resolveMeetLink(hearing.meetLink, hearing.caseId);
+                  const isGoogleMeet = targetLink.includes("meet.google.com");
+                  const isChamber = targetLink.includes("/chamber") || targetLink.includes("/meet") || hearing.location?.includes("Chamber");
+                  const buttonColor = isChamber ? "#7c3aed" : "#0284c7";
+
+                  return (
+                    <a
+                      href={targetLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={styles.actionButton(buttonColor)}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = buttonColor + "33";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = buttonColor + "22";
+                      }}
+                    >
+                      <Video size={14} />
+                      {isChamber ? "Join Hearing Chamber" : isGoogleMeet ? "Join Google Meet" : "Join Online Session"}
+                    </a>
+                  );
+                })()}
 
                 <button
                   style={styles.actionButton("#ff9900")}

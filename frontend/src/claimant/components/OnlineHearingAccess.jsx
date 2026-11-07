@@ -3,6 +3,24 @@ import { useState, useEffect } from "react";
 import "./OnlineHearingAccess.css";
 import axiosInstance from "../../api/axiosConfig";
 
+const resolveMeetLink = (link, caseId) => {
+  const defaultLink = `/chamber/${caseId || "CASE-2026-0021"}`;
+  if (!link) return defaultLink;
+
+  if (typeof window !== "undefined") {
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    if (isLocalhost && (link.includes("utkalodr.com") || link.includes("gokulanandachaudhurifoundation.com"))) {
+      try {
+        const parsed = new URL(link);
+        return `${window.location.origin}${parsed.pathname}${parsed.search}`;
+      } catch (e) {
+        return link;
+      }
+    }
+  }
+  return link;
+};
+
 export default function OnlineHearingAccess() {
   const [hearingData, setHearingData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -166,7 +184,7 @@ export default function OnlineHearingAccess() {
                 {hearing.status === "Scheduled" && hearing.meetLink ? (
                   <a
                     className="join-hearing-btn"
-                    href={hearing.meetLink}
+                    href={resolveMeetLink(hearing.meetLink, hearing.caseId)}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ textDecoration: "none", marginTop: "8px" }}
