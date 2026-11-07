@@ -1,6 +1,124 @@
 import { Bell, X, CheckCircle, AlertCircle, Info, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
-import axios from "axios";
+import axiosInstance from "../../api/axiosConfig";
+
+const resolveMeetLink = (link, caseId) => {
+  const defaultLink = `/chamber/${caseId || "CASE-2026-0021"}`;
+  if (!link) return defaultLink;
+
+  if (typeof window !== "undefined") {
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    if (isLocalhost && (link.includes("utkalodr.com") || link.includes("gokulanandachaudhurifoundation.com"))) {
+      try {
+        const parsed = new URL(link);
+        return `${window.location.origin}${parsed.pathname}${parsed.search}`;
+      } catch (e) {
+        return link;
+      }
+    }
+  }
+  return link;
+};
+
+const parseNotificationDetails = (notification) => {
+  if (!notification) {
+    return {
+      title: "Notification",
+      caseId: "",
+      message: "No details available.",
+      type: "info",
+      badge: "Info",
+      link: null,
+    };
+  }
+
+  // 1. Hearing notification
+  if (notification.HearingMessage) {
+    const hm = notification.HearingMessage;
+    const hearingType = hm.hearingType || "Mediation Session";
+    const caseId = hm.caseId || "";
+    const caseName = hm.caseName || "";
+    const time = hm.time ? ` at ${hm.time}` : "";
+    const loc = hm.location ? ` • Location: ${hm.location}` : "";
+    const rawLink = hm.meetLink || null;
+    const link = resolveMeetLink(rawLink, caseId);
+
+    return {
+      title: `Hearing Scheduled: ${hearingType}`,
+      caseId: caseId,
+      message: `Hearing scheduled for ${caseName || caseId || "Dispute Case"}${time}${loc}`,
+      type: "hearing",
+      badge: hearingType,
+      link: link,
+    };
+  }
+
+  // 2. Document / Evidence upload
+  if (notification.CaseMessage?.documentName) {
+    const cm = notification.CaseMessage;
+    return {
+      title: cm.title || "New Evidence Uploaded",
+      caseId: cm.caseId || "",
+      message: `A new document "${cm.documentName}" was submitted by ${cm.uploadedBy || "a party"} for ${cm.caseName || cm.caseId || "the case"}.`,
+      type: "evidence",
+      badge: "New Evidence",
+      link: cm.fileUrl || null,
+    };
+  }
+
+  // 3. Case Assignment
+  if (notification.CaseMessage?.assignedNeutral || notification.type === "assignment-summary") {
+    const cm = notification.CaseMessage || {};
+    return {
+      title: cm.title ? `Case Assignment: ${cm.title}` : "New Dispute Case Assigned",
+      caseId: cm.caseId || "",
+      message: `Case update for ${cm.caseId ? cm.caseId + " - " : ""}${cm.title || "Dispute Case"} (${cm.disputeType || "Mediation"}).`,
+      type: "assignment",
+      badge: cm.disputeType || "Assignment",
+      link: null,
+    };
+  }
+
+  // 4. Other CaseMessage
+  if (notification.CaseMessage) {
+    const cm = notification.CaseMessage;
+    const title = cm.title || "Case Notification";
+    const caseId = cm.caseId || "";
+    const msg = typeof cm === "string" ? cm : (cm.message || cm.title || JSON.stringify(cm));
+    return {
+      title: title,
+      caseId: caseId,
+      message: msg,
+      type: "update",
+      badge: "Case Update",
+      link: null,
+    };
+  }
+
+  // 5. Generic message
+  if (notification.message) {
+    return {
+      title: notification.title || "Notification",
+      caseId: notification.caseId || "",
+      message: notification.message,
+      type: notification.type || "info",
+      badge: notification.type || "Update",
+      link: null,
+    };
+  }
+
+  // 6. Fallback (email/whatsapp delivery status)
+  const channel = (notification.type || "System").toUpperCase();
+  const target = notification.respondentEmail || notification.claimantEmail || "";
+  return {
+    title: `${channel} Alert (${notification.status || "sent"})`,
+    caseId: "",
+    message: notification.error || `Notification successfully dispatched to ${target || "you"}.`,
+    type: notification.type || "info",
+    badge: channel,
+    link: null,
+  };
+};
 
 export default function Notifications() {
   const [notificationData, setNotificationData] = useState([]);
