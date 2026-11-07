@@ -126,9 +126,9 @@ io.on("connection", (socket) => {
   socket.on("join_room", async (data) => {
     try {
       console.log("join_room request received on backend:", data);
-      const { caseId, userAId, userBId } = data;
-      if (!caseId || !userAId || !userBId) {
-        console.warn("Invalid join_room data. Missing fields:", { caseId, userAId, userBId });
+      const { caseId, userAId, userBId, isJoint, isJointThread } = data;
+      if (!caseId) {
+        console.warn("Invalid join_room data. Missing caseId:", data);
         return;
       }
 
@@ -136,6 +136,23 @@ io.on("connection", (socket) => {
         mongoose.Types.ObjectId.isValid(caseId) ? { $or: [{ _id: caseId }, { caseId }] } : { caseId }
       );
       const canonicalCaseId = caseRecord ? String(caseRecord.caseId || caseRecord._id) : String(caseId);
+
+      // Check if this is a Joint Session Channel
+      if (isJoint || isJointThread || userBId === "joint" || userBId === "all") {
+        const jointRoom = `room_joint_${canonicalCaseId}`;
+        socket.join(jointRoom);
+        if (caseRecord && caseRecord.caseId && caseRecord._id) {
+          socket.join(`room_joint_${String(caseRecord._id)}`);
+          socket.join(`room_joint_${String(caseRecord.caseId)}`);
+        }
+        console.log(`User socket ${socket.id} successfully joined 3S Joint chat room: ${jointRoom}`);
+        return;
+      }
+
+      if (!userAId || !userBId) {
+        console.warn("Invalid 1-on-1 join_room data. Missing user IDs:", { caseId, userAId, userBId });
+        return;
+      }
 
       const sortedIds = [String(userAId), String(userBId)].sort().join("_");
       const roomName = `room_${canonicalCaseId}_${sortedIds}`;
@@ -155,27 +172,19 @@ io.on("connection", (socket) => {
   socket.on("send_message", async (data) => {
     console.log("send_message request received on backend:", data);
     try {
-      const { caseId, senderId, senderRole, receiverId, receiverRole, message } = data;
+      const { caseId, senderId, senderRole, senderName, receiverId, receiverRole, message, isJoint, isJointThread } = data;
 
-      if (!caseId || !senderId || !receiverId || !message) {
-        console.warn("send_message missing required fields:", { caseId, senderId, receiverId, message });
+      if (!caseId || !senderId || !message) {
+        console.warn("send_message missing required fields:", { caseId, senderId, message });
         return;
       }
 
       let validSenderId = senderId;
-      let validReceiverId = receiverId;
-
       if (!mongoose.Types.ObjectId.isValid(validSenderId)) {
         const foundSender = await User.findOne({
           $or: [{ email: validSenderId }, { role: senderRole }]
         });
         if (foundSender) validSenderId = foundSender._id;
-      }
-      if (!mongoose.Types.ObjectId.isValid(validReceiverId)) {
-        const foundReceiver = await User.findOne({
-          $or: [{ email: validReceiverId }, { role: receiverRole }]
-        });
-        if (foundReceiver) validReceiverId = foundReceiver._id;
       }
 
       const caseRecord = await Case.findOne(
@@ -183,16 +192,55 @@ io.on("connection", (socket) => {
       );
       const canonicalCaseId = caseRecord ? String(caseRecord.caseId || caseRecord._id) : String(caseId);
 
+      // Handle Joint Session Message
+      const isJointMsg = isJoint || isJointThread || receiverRole === "all" || receiverRole === "joint" || receiverId === "joint";
+
+      if (isJointMsg) {
+        const savedMsg = await ChatMessage.create({
+          caseId: canonicalCaseId,
+          senderId: validSenderId,
+          senderName: senderName || "",
+          senderRole: senderRole || "claimant",
+          receiverId: null,
+          receiverRole: "all",
+          isJointThread: true,
+          message,
+          timestamp: new Date(),
+        });
+        console.log("Saved 3S Joint message to MongoDB:", savedMsg._id);
+
+        const jointRoom = `room_joint_${canonicalCaseId}`;
+        console.log(`Broadcasting 3S joint receive_message to: ${jointRoom}`);
+        io.to(jointRoom).emit("receive_message", savedMsg);
+        if (caseRecord && caseRecord._id) {
+          io.to(`room_joint_${String(caseRecord._id)}`).emit("receive_message", savedMsg);
+          io.to(`room_joint_${String(caseRecord.caseId)}`).emit("receive_message", savedMsg);
+        }
+        socket.emit("receive_message", savedMsg);
+        return;
+      }
+
+      // Handle standard 1-on-1 message
+      let validReceiverId = receiverId;
+      if (validReceiverId && !mongoose.Types.ObjectId.isValid(validReceiverId)) {
+        const foundReceiver = await User.findOne({
+          $or: [{ email: validReceiverId }, { role: receiverRole }]
+        });
+        if (foundReceiver) validReceiverId = foundReceiver._id;
+      }
+
       const savedMsg = await ChatMessage.create({
         caseId: canonicalCaseId,
         senderId: validSenderId,
+        senderName: senderName || "",
         senderRole: senderRole || "respondent",
         receiverId: validReceiverId,
         receiverRole: receiverRole || "claimant",
+        isJointThread: false,
         message,
         timestamp: new Date(),
       });
-      console.log("Saved chat message to MongoDB:", savedMsg._id);
+      console.log("Saved 1-on-1 chat message to MongoDB:", savedMsg._id);
 
       const sortedIds = [String(validSenderId), String(validReceiverId)].sort().join("_");
       const roomName = `room_${canonicalCaseId}_${sortedIds}`;

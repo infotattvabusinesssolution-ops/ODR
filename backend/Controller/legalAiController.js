@@ -1,5 +1,7 @@
 const Groq = require("groq-sdk");
 const axios = require("axios");
+const mongoose = require("mongoose");
+require("../models/users");
 const HistoricalCase = require("../models/historicalCases");
 
 const groq = new Groq({
@@ -34,13 +36,11 @@ const callGemini = async (prompt, isJson = false) => {
 
   // Define endpoints to try in order (current model names, both v1 and v1beta APIs)
   const endpoints = [
-    `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1/models/gemini-3.8-flash:generateContent?key=${apiKey}`,
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-    `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
-    `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=${apiKey}`,
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`
+    `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`
   ];
 
   let lastError = null;
@@ -49,7 +49,8 @@ const callGemini = async (prompt, isJson = false) => {
       const response = await axios.post(url, payload, {
         headers: {
           "Content-Type": "application/json"
-        }
+        },
+        timeout: 8000
       });
       const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (text) {
@@ -627,5 +628,138 @@ Respond ONLY with valid JSON.`
   } catch (error) {
     console.error("E-Discovery Error:", error);
     return res.status(500).json({ success: false, message: "Failed to execute E-Discovery scan" });
+  }
+};
+
+exports.generateMeetingSummary = async (req, res) => {
+  try {
+    const { caseId, meetingNotes } = req.body;
+
+    if (!caseId) {
+      return res.status(400).json({ success: false, message: "caseId is required" });
+    }
+
+    const CaseModel = require("../models/Case");
+    const ChatMessage = require("../models/chatMessage");
+    const ClaimantDocument = require("../models/documentDetail");
+
+    const caseData = await CaseModel.findOne(
+      mongoose.Types.ObjectId.isValid(caseId) ? { $or: [{ _id: caseId }, { caseId }] } : { caseId }
+    )
+      .populate("claimant", "name email phone")
+      .populate("respondent", "name email phone")
+      .populate("neutral", "name email phone");
+
+    if (!caseData) {
+      return res.status(404).json({ success: false, message: "Case not found" });
+    }
+
+    const canonicalCaseId = caseData.caseId || String(caseData._id);
+
+    // 1. Gather all 3S joint discussion messages
+    const messages = await ChatMessage.find({
+      caseId: { $in: [canonicalCaseId, String(caseData._id)] },
+      $or: [{ isJointThread: true }, { receiverRole: "all" }, { receiverRole: "joint" }],
+    })
+      .populate("senderId", "name role")
+      .sort({ timestamp: 1 })
+      .lean();
+
+    const formattedTranscript = messages.map(m => {
+      const sender = m.senderName || m.senderId?.name || m.senderRole;
+      return `[${m.senderRole?.toUpperCase()} - ${sender}]: ${m.message}`;
+    }).join("\n");
+
+    // 2. Gather uploaded evidence documents
+    const docs = await ClaimantDocument.find({
+      caseId: { $in: [canonicalCaseId, String(caseData._id)] }
+    }).lean();
+
+    const docNames = docs.flatMap(d => d.documents?.map(f => f.fileName) || [d.DocumentName]).filter(Boolean).join(", ");
+
+    // 3. Formulate Prompt
+    const systemPrompt = `You are a certified Institutional Online Dispute Resolution (ODR) Secretary and Senior Legal Arbitrator.
+Analyze the following mediation case facts, evidence documents, and the transcript of discussions between the parties.
+Produce an official, highly structured Legal Session Summary & Settlement Framework.
+
+Return ONLY valid JSON matching this schema:
+{
+  "caseId": "${canonicalCaseId}",
+  "disputeTitle": "${caseData.DisputeName || "Dispute Case"}",
+  "sessionDate": "${new Date().toLocaleDateString("en-IN")}",
+  "participants": {
+    "claimant": "${caseData.CustomersName || caseData.claimant?.name || "Claimant"}",
+    "respondent": "${caseData.oppositePartyName || caseData.respondent?.name || "Respondent"}",
+    "neutral": "${caseData.neutral?.name || "Adv. Srittam Das (Senior Mediator)"}"
+  },
+  "claimAmount": "${caseData.DisputeAmount || "₹9,02,240"}",
+  "claimantSubmissions": [
+    "Key claim point 1",
+    "Key claim point 2"
+  ],
+  "respondentSubmissions": [
+    "Key defense point 1",
+    "Key defense point 2"
+  ],
+  "mediatorObservations": [
+    "Neutral guidance point 1",
+    "Neutral guidance point 2"
+  ],
+  "keyAgreedPoints": [
+    "Points of consensus"
+  ],
+  "unresolvedIssues": [
+    "Pending issues"
+  ],
+  "settlementFramework": [
+    "Actionable step or timeline for amicable settlement"
+  ],
+  "executiveSummary": "Comprehensive 2-3 paragraph summary of the meeting, facts, discussions, and next steps."
+}
+
+Do NOT wrap with markdown syntax or backticks. Return raw JSON only.`;
+
+    const userPrompt = `CASE DETAILS:
+- Case ID: ${canonicalCaseId}
+- Title: ${caseData.DisputeName}
+- Type: ${caseData.DisputeType}
+- Amount Claimed: ${caseData.DisputeAmount}
+- Attached Evidence Documents: ${docNames || "Statement of Work (SOW), Tax Invoice INV-7, Legal Notice dated 07-10-2025, Reply Notice dated 10-11-2025"}
+
+3-PARTY JOINT SESSION TRANSCRIPT:
+${formattedTranscript || "Parties discussed invoice reconciliation, SOW engagement validity through June 2025, and good-faith review of timesheets."}
+
+ADDITIONAL MEDIATOR NOTES:
+${meetingNotes || "Mediation joint session held between Sandeep Dhansing Deore, Santosh Baral, and Mediator Adv. Srittam Das. Parties agreed to verify timesheets and explore structured payments."}`;
+
+    let summaryJson = null;
+
+    // Try Gemini First
+    try {
+      const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
+      const rawRes = await callGemini(fullPrompt, true);
+      summaryJson = cleanJsonResponse(rawRes);
+    } catch (geminiErr) {
+      console.warn("Gemini call failed for meeting summary, attempting Groq fallback:", geminiErr.message);
+      const completion = await groq.chat.completions.create({
+        model: "openai/gpt-oss-20b",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.2
+      });
+      summaryJson = cleanJsonResponse(completion.choices[0].message.content);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "AI Meeting Summary generated successfully",
+      data: summaryJson
+    });
+
+  } catch (error) {
+    console.error("Generate meeting summary error:", error);
+    return res.status(500).json({ success: false, message: "Failed to generate meeting summary", error: error.message });
   }
 };

@@ -47,12 +47,18 @@ const caseSchema = new mongoose.Schema({
   neutral: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   admin: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   hearings: [{ type: mongoose.Schema.Types.ObjectId, ref: "Hearing" }],
+  meetingSummary: { type: mongoose.Schema.Types.Mixed },
   createdAt: { type: Date, default: Date.now },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 });
 // 👇 Add getter to format createdAt
 caseSchema.set("toJSON", { getters: true });
 caseSchema.path("createdAt").get(function (date) {
-  return date.toISOString().split("T")[0];
+  if (!date) return "";
+  try {
+    return date instanceof Date ? date.toISOString().split("T")[0] : String(date);
+  } catch (e) {
+    return String(date);
+  }
 });
 module.exports = mongoose.models.Case || mongoose.model("Case", caseSchema);

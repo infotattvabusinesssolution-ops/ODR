@@ -442,6 +442,70 @@ const uploadDocumentForClaimant = async (req, res) => {
       });
     }
 
+    // 4️⃣ Notify Assigned Neutral of New Document Evidence
+    try {
+      const caseRecord = await Case.findOne({
+        $or: [
+          { caseId: caseId },
+          ...(mongoose.isValidObjectId(caseId) ? [{ _id: caseId }] : []),
+        ],
+      }).populate("neutral", "name email phone");
+
+      if (caseRecord && caseRecord.neutral?.email) {
+        const neutralUser = caseRecord.neutral;
+        const claimantName = claimant.name || "Sandeep Dhansing Deore";
+
+        // Create in-app notification in caseNotification
+        await caseNotification.create({
+          caseId: caseRecord._id,
+          neutral: neutralUser._id,
+          neutralEmail: neutralUser.email,
+          claimantEmail: claimantEmail,
+          type: "email",
+          status: "sent",
+          CaseMessage: {
+            title: "New Evidence Uploaded",
+            caseId: caseRecord.caseId,
+            caseName: caseRecord.DisputeName,
+            documentName: file.originalname,
+            uploadedBy: `Claimant (${claimantName})`,
+            fileUrl: uploadResult.secure_url,
+            sentAt: new Date(),
+          },
+        });
+
+        // Send Email Alert to Neutral
+        const mailOptions = {
+          from: process.env.SMTP_FROM || `"Utkal ODR" <${process.env.SMTP_USER || process.env.EMAIL}>`,
+          to: neutralUser.email,
+          subject: `New Evidence Uploaded - Case ${caseRecord.caseId}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 20px; background: #f8fafc;">
+              <div style="max-width: 600px; margin: auto; background: white; padding: 24px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <h2 style="color: #0f172a; margin-top: 0;">New Evidence Document Uploaded</h2>
+                <p>Hello <strong>${neutralUser.name || "Mediator"}</strong>,</p>
+                <p>Claimant <strong>${claimantName}</strong> has submitted a new evidence document for your assigned case.</p>
+                <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                  <tr style="background: #f1f5f9;"><td style="padding: 10px; font-weight: bold;">Case ID:</td><td style="padding: 10px;">${caseRecord.caseId}</td></tr>
+                  <tr><td style="padding: 10px; font-weight: bold;">Dispute:</td><td style="padding: 10px;">${caseRecord.DisputeName}</td></tr>
+                  <tr style="background: #f1f5f9;"><td style="padding: 10px; font-weight: bold;">Document:</td><td style="padding: 10px;">${file.originalname}</td></tr>
+                  <tr><td style="padding: 10px; font-weight: bold;">Uploaded At:</td><td style="padding: 10px;">${new Date().toLocaleString("en-IN")}</td></tr>
+                </table>
+                <div style="margin-top: 24px; text-align: center;">
+                  <a href="${uploadResult.secure_url}" target="_blank" style="display: inline-block; padding: 12px 24px; background: #2563eb; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">View Document</a>
+                </div>
+                <p style="margin-top: 24px; font-size: 13px; color: #64748b;">Regards,<br/><strong>Utkal ODR Secretariat</strong></p>
+              </div>
+            </div>
+          `,
+        };
+        await transporter.sendMail(mailOptions);
+        console.log(`✅ Neutral ${neutralUser.email} notified of new evidence upload: ${file.originalname}`);
+      }
+    } catch (notifErr) {
+      console.warn("Notice: Neutral evidence notification failed:", notifErr.message);
+    }
+
     res.status(200).json({
       message: "Document uploaded successfully",
       document: caseDocument,

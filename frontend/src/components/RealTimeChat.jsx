@@ -2,11 +2,18 @@ import { useState, useEffect, useRef } from "react";
 import { MessageSquare, Send, Bot, ShieldAlert, ArrowLeft, RefreshCw, Sparkles, Loader2 } from "lucide-react";
 import axiosInstance, { getApiBaseUrl } from "../api/axiosConfig";
 
+const JOINT_CHANNEL = {
+  _id: "joint-3s-thread",
+  name: "3S Joint Discussion (Sandeep, Santosh & Srittam)",
+  role: "joint",
+  isJoint: true,
+};
+
 export default function RealTimeChat({ role }) {
   const [cases, setCases] = useState([]);
   const [selectedCaseId, setSelectedCaseId] = useState("");
   const [participants, setParticipants] = useState([]);
-  const [activeRecipient, setActiveRecipient] = useState(null);
+  const [activeRecipient, setActiveRecipient] = useState(JOINT_CHANNEL);
   const [chatMessages, setChatMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,6 +23,8 @@ export default function RealTimeChat({ role }) {
   const messagesEndRef = useRef(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [showSidebar, setShowSidebar] = useState(true);
+
+  const isJointActive = !activeRecipient || !!activeRecipient.isJoint || activeRecipient._id === "joint-3s-thread";
 
   // Resize listener to update isMobile dynamically
   useEffect(() => {
@@ -43,7 +52,7 @@ export default function RealTimeChat({ role }) {
     if (userId) {
       setCurrentUserId(userId);
     } else {
-      const activeRole = role || localStorage.getItem("userRole") || "respondent";
+      const activeRole = role || localStorage.getItem("userRole") || "claimant";
       axiosInstance
         .get(`/${activeRole}/data`)
         .then((res) => {
@@ -103,7 +112,7 @@ export default function RealTimeChat({ role }) {
         }
 
         if (loadedCases.length === 0) {
-          const demoCase = { caseId: "DEMO-CASE", DisputeName: "Interactive Demo Dispute" };
+          const demoCase = { caseId: "CASE-2026-0021", DisputeName: "Sandeep Dhansing Deore vs Santosh Baral" };
           loadedCases = [demoCase];
         }
 
@@ -112,9 +121,9 @@ export default function RealTimeChat({ role }) {
         setSelectedCaseId(firstId);
       } catch (err) {
         console.error("Failed to load user cases:", err);
-        const demoCase = { caseId: "DEMO-CASE", DisputeName: "Interactive Demo Dispute" };
+        const demoCase = { caseId: "CASE-2026-0021", DisputeName: "Sandeep Dhansing Deore vs Santosh Baral" };
         setCases([demoCase]);
-        setSelectedCaseId("DEMO-CASE");
+        setSelectedCaseId("CASE-2026-0021");
       } finally {
         setLoading(false);
       }
@@ -132,8 +141,6 @@ export default function RealTimeChat({ role }) {
         { _id: "neutral-demo", name: "Sarah (Mediator)", role: "neutral" },
         { _id: "respondent-demo", name: "John (Respondent)", role: "respondent" }
       ]);
-      setActiveRecipient(null);
-      setChatMessages([]);
       return;
     }
 
@@ -143,19 +150,19 @@ export default function RealTimeChat({ role }) {
         if (res.data?.success) {
           const list = res.data.participants || res.data.data || [];
           const filtered = list.filter(
-            (p) => p && (!currentUserId || p._id?.toString() !== currentUserId?.toString())
+            (p) => p && (!currentUserId || String(p._id) !== String(currentUserId))
           );
           setParticipants(filtered);
-          if (filtered.length > 0) {
-            setActiveRecipient((prev) => {
-              // Keep current if still in list, else select first
-              if (prev && filtered.some((p) => p._id === prev._id)) return prev;
-              return filtered[0];
-            });
-          } else {
-            setActiveRecipient(null);
-          }
-          setChatMessages([]);
+          // Preserve joint session selection or active recipient
+          setActiveRecipient((prev) => {
+            if (!prev || prev._id === "joint-3s-thread" || prev.isJoint) {
+              return JOINT_CHANNEL;
+            }
+            if (filtered.some((p) => String(p._id) === String(prev._id))) {
+              return prev;
+            }
+            return JOINT_CHANNEL;
+          });
         }
       } catch (err) {
         console.error("Failed to fetch case participants:", err);
@@ -163,6 +170,43 @@ export default function RealTimeChat({ role }) {
     };
     fetchParticipants();
   }, [selectedCaseId, currentUserId]);
+
+  // Fetch conversation logs from DB whenever case or activeRecipient changes
+  useEffect(() => {
+    if (!selectedCaseId || !activeRecipient) return;
+
+    if (selectedCaseId === "DEMO-CASE") {
+      setChatMessages([
+        { _id: "1", senderId: activeRecipient._id, message: "Hello! I am " + activeRecipient.name + ". This is a demonstration of the Real-Time Communication module.", timestamp: new Date(Date.now() - 60000) },
+        { _id: "2", senderId: currentUserId, message: "Hi! It's great to see this working. How does the AI rewrite feature work?", timestamp: new Date(Date.now() - 30000) },
+        { _id: "3", senderId: activeRecipient._id, message: "Just type a casual message below and click the sparkle icon before sending! The AI will automatically rewrite it into a professional, legal-standard message.", timestamp: new Date() }
+      ]);
+      return;
+    }
+
+    const fetchHistory = async () => {
+      try {
+        const sender = currentUserId || localStorage.getItem("userId");
+        const isJoint = !activeRecipient || !!activeRecipient.isJoint || activeRecipient._id === "joint-3s-thread";
+        const url = isJoint
+          ? `/api/chat/joint-history/${selectedCaseId}`
+          : `/api/chat/history/${selectedCaseId}/${sender}/${activeRecipient._id}`;
+
+        if (!isJoint && !sender) return;
+
+        console.log(`Fetching history from: ${url}`);
+        const res = await axiosInstance.get(url);
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          console.log(`Loaded ${res.data.data.length} messages from database history.`);
+          setChatMessages(res.data.data);
+        }
+      } catch (err) {
+        console.error("Failed to load chat history:", err);
+      }
+    };
+
+    fetchHistory();
+  }, [selectedCaseId, activeRecipient, currentUserId]);
 
   // Dynamically load Socket.io client and maintain single connection
   useEffect(() => {
@@ -194,7 +238,6 @@ export default function RealTimeChat({ role }) {
       script.src = `${getApiBaseUrl()}/socket.io/socket.io.js`;
       script.async = true;
       script.onerror = () => {
-        // Fallback to CDN if backend static file doesn't load
         const cdnScript = document.createElement("script");
         cdnScript.src = "https://cdn.socket.io/4.8.1/socket.io.min.js";
         cdnScript.onload = () => {
@@ -216,15 +259,17 @@ export default function RealTimeChat({ role }) {
     };
   }, []);
 
-  // Join Socket.io Room and fetch chat history when active recipient or case updates
+  // Join Socket.io Room when active recipient or case updates
   useEffect(() => {
     const sender = currentUserId || localStorage.getItem("userId");
     if (!socket || !selectedCaseId || !activeRecipient || !sender) return;
 
+    const isJoint = isJointActive;
     const joinPayload = {
       caseId: selectedCaseId,
       userAId: sender,
-      userBId: activeRecipient._id,
+      userBId: isJoint ? "joint" : activeRecipient._id,
+      isJoint: isJoint,
     };
     console.log("Emitting join_room on client side:", joinPayload);
     socket.emit("join_room", joinPayload);
@@ -236,42 +281,18 @@ export default function RealTimeChat({ role }) {
         const filteredPrev = prev.filter(
           (m) => !(m._id?.startsWith("temp_") && m.message === messageData.message)
         );
-        if (filteredPrev.some((m) => m._id === messageData._id)) return filteredPrev;
+        if (filteredPrev.some((m) => String(m._id) === String(messageData._id))) return filteredPrev;
         return [...filteredPrev, messageData];
       });
     };
 
     socket.on("receive_message", handleReceive);
 
-    // Fetch conversation logs from DB
-    const fetchHistory = async () => {
-      if (selectedCaseId === "DEMO-CASE") {
-        setChatMessages([
-          { _id: "1", senderId: activeRecipient._id, message: "Hello! I am " + activeRecipient.name + ". This is a demonstration of the Real-Time Communication module.", timestamp: new Date(Date.now() - 60000) },
-          { _id: "2", senderId: currentUserId, message: "Hi! It's great to see this working. How does the AI rewrite feature work?", timestamp: new Date(Date.now() - 30000) },
-          { _id: "3", senderId: activeRecipient._id, message: "Just type a casual message below and click the sparkle icon before sending! The AI will automatically rewrite it into a professional, legal-standard message.", timestamp: new Date() }
-        ]);
-        return;
-      }
-      try {
-        const res = await axiosInstance.get(
-          `/api/chat/history/${selectedCaseId}/${sender}/${activeRecipient._id}`
-        );
-        if (res.data?.success) {
-          console.log(`Loaded ${res.data.data.length} messages from database history.`);
-          setChatMessages(res.data.data);
-        }
-      } catch (err) {
-        console.error("Failed to load chat history:", err);
-      }
-    };
-    fetchHistory();
-
     return () => {
       console.log("Cleaning up receive_message socket listener...");
       socket.off("receive_message", handleReceive);
     };
-  }, [socket, selectedCaseId, activeRecipient, currentUserId]);
+  }, [socket, selectedCaseId, activeRecipient, currentUserId, isJointActive]);
 
   const [aiLoading, setAiLoading] = useState(false);
 
@@ -292,13 +313,23 @@ export default function RealTimeChat({ role }) {
     }
   };
 
+  // Helper to resolve sender display name
+  const getSenderName = () => {
+    const fromStorage = localStorage.getItem("userName") || localStorage.getItem("username") || localStorage.getItem("name");
+    if (fromStorage && fromStorage !== "User" && fromStorage !== "null") return fromStorage;
+    if (role === "claimant") return "Sandeep Dhansing Deore";
+    if (role === "respondent") return "Santosh Baral";
+    if (role === "neutral") return "Adv. Srittam Das";
+    return "Admin";
+  };
+
   // Send a message
   const handleSendMessage = (e) => {
     if (e) e.preventDefault();
     if (!inputMessage.trim()) return;
 
     if (!activeRecipient) {
-      toast.error("No recipient selected to send the message to.");
+      alert("No recipient selected to send the message to.");
       return;
     }
 
@@ -327,23 +358,19 @@ export default function RealTimeChat({ role }) {
       return;
     }
 
-    if (!sender) {
-      toast.error("Please ensure you are logged in to send messages.");
-      return;
-    }
-
-    if (!socket) {
-      toast.error("Real-time chat is currently disconnected. Please refresh or try again later.");
-      return;
-    }
-
     const trimmedMsg = inputMessage.trim();
+    const isJoint = isJointActive;
+    const currentName = getSenderName();
+
     const payload = {
       caseId: selectedCaseId,
       senderId: sender,
-      senderRole: role || "respondent",
-      receiverId: activeRecipient._id,
-      receiverRole: activeRecipient.role || "claimant",
+      senderName: currentName,
+      senderRole: role || "claimant",
+      receiverId: isJoint ? null : activeRecipient._id,
+      receiverRole: isJoint ? "all" : (activeRecipient.role || "respondent"),
+      isJoint: isJoint,
+      isJointThread: isJoint,
       message: trimmedMsg,
     };
 
@@ -357,9 +384,11 @@ export default function RealTimeChat({ role }) {
       _id: "temp_" + Date.now(),
       caseId: selectedCaseId,
       senderId: sender,
-      senderRole: role || "respondent",
-      receiverId: activeRecipient._id,
-      receiverRole: activeRecipient.role || "claimant",
+      senderName: currentName,
+      senderRole: role || "claimant",
+      receiverId: isJoint ? null : activeRecipient._id,
+      receiverRole: isJoint ? "all" : (activeRecipient.role || "respondent"),
+      isJointThread: isJoint,
       message: trimmedMsg,
       timestamp: new Date().toISOString(),
     };
@@ -369,11 +398,12 @@ export default function RealTimeChat({ role }) {
 
   const getRoleLabel = (userRole) => {
     switch (userRole) {
+      case "joint": return "Joint Session";
       case "admin": return "Court Admin";
       case "neutral": return "Mediator";
       case "claimant": return "Claimant";
       case "respondent": return "Respondent";
-      default: return userRole;
+      default: return userRole || "Party";
     }
   };
 
@@ -391,7 +421,7 @@ export default function RealTimeChat({ role }) {
       fontFamily: "'Inter', sans-serif"
     },
     sidebar: {
-      width: isMobile ? (showSidebar ? "100%" : "0px") : "320px",
+      width: isMobile ? (showSidebar ? "100%" : "0px") : "330px",
       borderRight: "1px solid #e2e8f0",
       display: isMobile ? (showSidebar ? "flex" : "none") : "flex",
       flexDirection: "column",
@@ -413,34 +443,35 @@ export default function RealTimeChat({ role }) {
       justifyContent: "space-between"
     },
     contactItem: (isActive) => ({
-      padding: "16px 20px",
-      borderBottom: "1px solid #e2e8f0",
+      padding: "14px 18px",
+      borderBottom: "1px solid #f1f5f9",
       cursor: "pointer",
       backgroundColor: isActive ? "#e0e7ff" : "transparent",
       display: "flex",
       alignItems: "center",
       gap: "12px",
-      transition: "background 0.2s"
+      transition: "all 0.2s"
     }),
     avatar: (userRole) => ({
       width: "42px",
       height: "42px",
       borderRadius: "50%",
-      backgroundColor: userRole === "admin" ? "#ef4444" : userRole === "neutral" ? "#8b5cf6" : "#3b82f6",
+      backgroundColor: userRole === "joint" ? "#f59e0b" : userRole === "admin" ? "#ef4444" : userRole === "neutral" ? "#8b5cf6" : "#3b82f6",
       color: "white",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
       fontWeight: "bold",
-      fontSize: "14px"
+      fontSize: "14px",
+      flexShrink: 0
     }),
     badge: (userRole) => ({
       fontSize: "10px",
       padding: "3px 8px",
       borderRadius: "12px",
       fontWeight: "600",
-      backgroundColor: userRole === "admin" ? "#fee2e2" : userRole === "neutral" ? "#f3e8ff" : "#dbeafe",
-      color: userRole === "admin" ? "#dc2626" : userRole === "neutral" ? "#7c3aed" : "#2563eb",
+      backgroundColor: userRole === "joint" ? "#fef3c7" : userRole === "admin" ? "#fee2e2" : userRole === "neutral" ? "#f3e8ff" : "#dbeafe",
+      color: userRole === "joint" ? "#b45309" : userRole === "admin" ? "#dc2626" : userRole === "neutral" ? "#7c3aed" : "#2563eb",
       alignSelf: "flex-start",
       marginTop: "4px"
     })
@@ -450,12 +481,14 @@ export default function RealTimeChat({ role }) {
     <div style={styles.container}>
       {/* 1. Chat Contacts Sidebar */}
       <div style={styles.sidebar}>
-        <div style={{ padding: "20px", borderBottom: "1px solid #e2e8f0", backgroundColor: "white" }}>
-          <label style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Select Active Case</label>
+        <div style={{ padding: "18px 20px", borderBottom: "1px solid #e2e8f0", backgroundColor: "white" }}>
+          <label style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Select Active Case
+          </label>
           <select
             value={selectedCaseId}
             onChange={(e) => setSelectedCaseId(e.target.value)}
-            style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #cbd5e1", marginTop: "6px", fontSize: "14px", outline: "none" }}
+            style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #cbd5e1", marginTop: "6px", fontSize: "13px", outline: "none", fontWeight: "500", backgroundColor: "#f8fafc" }}
           >
             {cases.map((c) => {
               const val = c.caseId || c._id || c.id;
@@ -471,13 +504,48 @@ export default function RealTimeChat({ role }) {
           </select>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto" }}>
-          <div style={{ padding: "12px 20px", fontSize: "12px", fontWeight: "600", color: "#64748b" }}>Case Participants</div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
+          {/* 3S Joint Session Thread Channel */}
+          <div style={{ padding: "8px 20px 6px", fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Group Joint Session
+          </div>
+          <div
+            style={{
+              padding: "14px 16px",
+              cursor: "pointer",
+              backgroundColor: isJointActive ? "#fef3c7" : "#ffffff",
+              border: isJointActive ? "2px solid #f59e0b" : "1px solid #e2e8f0",
+              margin: "4px 14px 14px",
+              borderRadius: "12px",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              boxShadow: isJointActive ? "0 4px 12px rgba(245, 158, 11, 0.25)" : "0 1px 3px rgba(0,0,0,0.04)",
+              transition: "all 0.2s"
+            }}
+            onClick={() => {
+              setActiveRecipient(JOINT_CHANNEL);
+              if (isMobile) setShowSidebar(false);
+            }}
+          >
+            <div style={{ ...styles.avatar("joint"), fontSize: "20px", backgroundColor: "#f59e0b" }}>🏛️</div>
+            <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
+              <span style={{ fontWeight: "700", fontSize: "13px", color: isJointActive ? "#92400e" : "#1e293b" }}>3S Joint Discussion</span>
+              <span style={{ fontSize: "11px", color: isJointActive ? "#b45309" : "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                Sandeep · Santosh · Srittam
+              </span>
+              <span style={{ ...styles.badge("joint"), marginTop: "4px" }}>Active Joint Session</span>
+            </div>
+          </div>
+
+          <div style={{ padding: "8px 20px 6px", fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Direct Messages (1-on-1)
+          </div>
           {participants.length === 0 ? (
-            <div style={{ padding: "20px", textAlign: "center", color: "#64748b", fontSize: "13px" }}>No other participants found.</div>
+            <div style={{ padding: "20px", textAlign: "center", color: "#64748b", fontSize: "13px" }}>No other individual participants found.</div>
           ) : (
-            participants.map((p) => {
-              const isActive = activeRecipient && activeRecipient._id === p._id;
+            participants.filter(p => !p.isJoint).map((p) => {
+              const isActive = !isJointActive && activeRecipient && String(activeRecipient._id) === String(p._id);
               return (
                 <div
                   key={p._id}
@@ -491,7 +559,7 @@ export default function RealTimeChat({ role }) {
                     {p.name ? p.name.substring(0, 2).toUpperCase() : "?"}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-                    <span style={{ fontWeight: "600", fontSize: "14px", color: "#1e293b" }}>{p.name}</span>
+                    <span style={{ fontWeight: "600", fontSize: "13px", color: "#1e293b" }}>{p.name}</span>
                     <span style={styles.badge(p.role)}>{getRoleLabel(p.role)}</span>
                   </div>
                 </div>
@@ -516,15 +584,23 @@ export default function RealTimeChat({ role }) {
                     <ArrowLeft size={20} />
                   </button>
                 )}
-                <div style={styles.avatar(activeRecipient.role)}>
-                  {activeRecipient.name ? activeRecipient.name.substring(0, 2).toUpperCase() : "?"}
+                <div style={{ ...styles.avatar(isJointActive ? "joint" : activeRecipient.role), fontSize: isJointActive ? "20px" : "14px" }}>
+                  {isJointActive ? "🏛️" : (activeRecipient.name ? activeRecipient.name.substring(0, 2).toUpperCase() : "?")}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontWeight: "700", fontSize: "16px", color: "#1e293b" }}>{activeRecipient.name}</span>
-                  <span style={{ fontSize: "12px", color: "#64748b" }}>Direct messaging conversation</span>
+                  <span style={{ fontWeight: "700", fontSize: "16px", color: "#1e293b" }}>
+                    {isJointActive ? "3S Joint Discussion" : activeRecipient.name}
+                  </span>
+                  <span style={{ fontSize: "12px", color: isJointActive ? "#b45309" : "#64748b", fontWeight: isJointActive ? "600" : "400" }}>
+                    {isJointActive
+                      ? "Group Joint Session · Sandeep (Claimant) · Santosh (Respondent) · Adv. Srittam Das (Mediator)"
+                      : `Direct 1-on-1 messaging conversation with ${getRoleLabel(activeRecipient.role)}`}
+                  </span>
                 </div>
               </div>
-              <span style={styles.badge(activeRecipient.role)}>{getRoleLabel(activeRecipient.role)}</span>
+              <span style={styles.badge(isJointActive ? "joint" : activeRecipient.role)}>
+                {isJointActive ? "Active Joint Session (3S)" : getRoleLabel(activeRecipient.role)}
+              </span>
             </div>
 
             {/* Messages container */}
@@ -532,21 +608,42 @@ export default function RealTimeChat({ role }) {
               {chatMessages.length === 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "#64748b" }}>
                   <MessageSquare size={48} style={{ opacity: 0.3, marginBottom: "12px" }} />
-                  <p style={{ fontSize: "14px" }}>Start of messaging history with {activeRecipient.name}.</p>
+                  <p style={{ fontSize: "14px", fontWeight: "500" }}>
+                    Start of messaging history in {isJointActive ? "3S Joint Discussion" : activeRecipient.name}.
+                  </p>
+                  <p style={{ fontSize: "12px", color: "#94a3b8", marginTop: "4px" }}>
+                    Send a message below to begin discussion.
+                  </p>
                 </div>
               ) : (
                 chatMessages.map((msg) => {
-                  const isMe = msg.senderId?.toString() === currentUserId?.toString();
+                  const msgSenderId = msg.senderId?._id ? String(msg.senderId._id) : String(msg.senderId || "");
+                  const myId = String(currentUserId || localStorage.getItem("userId") || "");
+                  const isMe = Boolean(msgSenderId && myId && msgSenderId === myId);
+                  const senderRole = msg.senderRole || msg.senderId?.role || "claimant";
+                  const senderName = msg.senderName || msg.senderId?.name || getRoleLabel(senderRole);
+
                   return (
                     <div
                       key={msg._id || msg.timestamp}
                       style={{
                         alignSelf: isMe ? "flex-end" : "flex-start",
-                        maxWidth: "70%",
+                        maxWidth: "72%",
                         display: "flex",
                         flexDirection: "column"
                       }}
                     >
+                      {/* Sender label in Joint Thread */}
+                      {!isMe && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                          <span style={{ fontSize: "11px", fontWeight: "700", color: "#334155" }}>
+                            {senderName}
+                          </span>
+                          <span style={{ ...styles.badge(senderRole), marginTop: 0, padding: "1px 6px", fontSize: "9px" }}>
+                            {getRoleLabel(senderRole)}
+                          </span>
+                        </div>
+                      )}
                       <div
                         style={{
                           backgroundColor: isMe ? "#4f46e5" : "#ffffff",
@@ -555,7 +652,7 @@ export default function RealTimeChat({ role }) {
                           borderRadius: "16px",
                           borderTopRightRadius: isMe ? "4px" : "16px",
                           borderTopLeftRadius: isMe ? "16px" : "4px",
-                          boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+                          boxShadow: "0 2px 4px rgba(0,0,0,0.04)",
                           border: isMe ? "none" : "1px solid #cbd5e1",
                           fontSize: "14px",
                           lineHeight: "1.5",
@@ -603,53 +700,39 @@ export default function RealTimeChat({ role }) {
                 <button
                   key={idx}
                   onClick={() => {
-                    if (!activeRecipient) {
-                      toast.error("No recipient selected to send the message to.");
-                      return;
-                    }
                     const sender = currentUserId || localStorage.getItem("userId") || "me";
+                    const isJoint = isJointActive;
+                    const currentName = getSenderName();
 
-                    if (selectedCaseId === "DEMO-CASE") {
-                      const newMsg = {
-                        _id: Date.now().toString(),
-                        senderId: sender,
-                        message: sug,
-                        timestamp: new Date().toISOString()
-                      };
-                      setChatMessages((prev) => [...prev, newMsg]);
-                      setTimeout(() => {
-                         setChatMessages((prev) => [...prev, {
-                            _id: (Date.now()+1).toString(),
-                            senderId: activeRecipient._id,
-                            message: "Thank you for the quick suggestion. I will review it.",
-                            timestamp: new Date().toISOString()
-                         }]);
-                      }, 1000);
-                      return;
-                    }
-                    if (!socket) {
-                      toast.error("Real-time chat is currently disconnected. Please refresh or try again later.");
-                      return;
-                    }
-                    
                     const payload = {
                       caseId: selectedCaseId,
                       senderId: sender,
-                      senderRole: role,
-                      receiverId: activeRecipient._id,
-                      receiverRole: activeRecipient.role,
+                      senderName: currentName,
+                      senderRole: role || "claimant",
+                      receiverId: isJoint ? null : activeRecipient._id,
+                      receiverRole: isJoint ? "all" : (activeRecipient.role || "respondent"),
+                      isJoint: isJoint,
+                      isJointThread: isJoint,
                       message: sug,
                     };
 
                     const tempMsg = {
                       _id: "temp_" + Date.now(),
+                      caseId: selectedCaseId,
                       senderId: sender,
+                      senderName: currentName,
+                      senderRole: role || "claimant",
+                      receiverId: isJoint ? null : activeRecipient._id,
+                      receiverRole: isJoint ? "all" : (activeRecipient.role || "respondent"),
+                      isJointThread: isJoint,
                       message: sug,
                       timestamp: new Date().toISOString(),
                     };
                     setChatMessages((prev) => [...prev, tempMsg]);
 
-                    socket.emit("send_message", payload);
+                    if (socket) {
+                      socket.emit("send_message", payload);
+                    }
                   }}
                   style={{
                     background: "#ffffff",
@@ -679,7 +762,7 @@ export default function RealTimeChat({ role }) {
                   type="text"
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
-                  placeholder={`Message ${activeRecipient.name}...`}
+                  placeholder={`Message in ${isJointActive ? "3S Joint Discussion" : activeRecipient.name}...`}
                   style={{ width: "100%", padding: "12px 48px 12px 16px", borderRadius: "10px", border: "1px solid #cbd5e1", outline: "none", fontSize: "14px" }}
                 />
                 <button

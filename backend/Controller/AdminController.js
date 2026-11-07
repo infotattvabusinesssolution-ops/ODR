@@ -4,7 +4,7 @@ const adminDocument = require("../models/documentDetail");
 const hearingSchedule = require("../models/hearing");
 const caseNotification = require("../models/caseNotification");
 const { sendAssignEmail } = require("../Service/emailService");
-const { sendAssignHearingEmail } = require("../Service/hearingService");
+const { sendAssignHearingEmail, notifyAllHearingParties } = require("../Service/hearingService");
 const {
   sendHearingWhatsAppMessage,
 } = require("../Service/whatsappHearingService");
@@ -742,9 +742,20 @@ const createNewScheduleHearing = async (req, res) => {
       color: "#9c27b0",
     });
 
+    // Notify Claimant, Respondent & Neutral via Email and WhatsApp
+    try {
+      const populatedCase = caseData || await Case.findOne({ caseId: newHearing.caseId })
+        .populate("claimant", "email phone name")
+        .populate("respondent", "email phone name")
+        .populate("neutral", "email phone name");
+      await notifyAllHearingParties(newHearing, populatedCase);
+    } catch (notifyErr) {
+      console.warn("Notice: Hearing party notifications error:", notifyErr.message);
+    }
+
     res.status(201).json({
       success: true,
-      message: "Hearing created successfully with meeting link",
+      message: "Hearing created successfully with meeting link and notifications sent to all parties",
       data: newHearing,
     });
   } catch (err) {
@@ -1140,50 +1151,23 @@ const asignScheduleHearing = async (req, res) => {
 
     /*
       ================================
-      SEND EMAIL TO NEUTRAL
+      SEND NOTIFICATIONS (EMAIL + WHATSAPP) TO ALL PARTIES
       ================================
     */
-    if (neutral?.email) {
-      try {
-        const info = await sendAssignHearingEmail(
-          neutral.email,
-          details.caseName,
-          details.caseId,
-          details.createdAt,
-          details.hearingType,
-          details.duration,
-          details.time,
-          details.location,
-          details.meetLink
-        );
+    try {
+      const fullCase = await Case.findOne({
+        $or: [
+          { caseId: updatedHearing.caseId },
+          ...(mongoose.isValidObjectId(updatedHearing.caseId) ? [{ _id: updatedHearing.caseId }] : [])
+        ]
+      })
+        .populate("claimant", "email phone name")
+        .populate("respondent", "email phone name")
+        .populate("neutral", "email phone name");
 
-        await caseNotification.create({
-          neutral: neutral._id,
-          neutralEmail: neutral.email, // 👈 ADDED
-          respondentEmail, // optional
-          type: "email",
-          status: "sent",
-          HearingMessage: {
-            caseName: details.caseName,
-            caseId: details.caseId,
-            createdAt: details.createdAt,
-            hearingType: details.hearingType,
-            duration: details.duration,
-            time: details.time,
-            location: details.location,
-            meetLink: details.meetLink,
-            sentAt: new Date(),
-          },
-        });
-      } catch (err) {
-        await caseNotification.create({
-          caseId,
-          neutral: neutral._id,
-          type: "email",
-          status: "failed",
-          error: err.toString(),
-        });
-      }
+      await notifyAllHearingParties(updatedHearing, fullCase);
+    } catch (notifyErr) {
+      console.warn("Notice: Assign hearing notification error:", notifyErr.message);
     }
 
     // ================================

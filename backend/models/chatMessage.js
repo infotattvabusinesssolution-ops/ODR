@@ -12,6 +12,9 @@ const chatMessageSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    senderName: {
+      type: String,
+    },
     senderRole: {
       type: String,
       required: true,
@@ -20,12 +23,18 @@ const chatMessageSchema = new mongoose.Schema(
     receiverId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: false, // Optional for 3-party Joint Sessions
     },
     receiverRole: {
       type: String,
-      required: true,
-      enum: ["claimant", "respondent", "neutral", "admin"],
+      required: false,
+      enum: ["claimant", "respondent", "neutral", "admin", "all", "joint"],
+      default: "all",
+    },
+    isJointThread: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
     message: {
       type: String,

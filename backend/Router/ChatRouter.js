@@ -5,6 +5,7 @@ const { verifyToken } = require("../middlewares/Auth.js");
 const {
   handleChatMessage,
   getChatHistory,
+  getJointChatHistory,
   getCaseParticipants,
   getMyCases,
 } = require("../Controller/ChatController");
@@ -15,9 +16,10 @@ router.use(verifyToken);
 // AI Chat endpoint
 router.post("/message", handleChatMessage);
 
-// One-to-One Real-Time Chat Endpoints
+// One-to-One and Joint Real-Time Chat Endpoints
 router.get("/cases", getMyCases);
 router.get("/history/:caseId/:userAId/:userBId", getChatHistory);
+router.get("/joint-history/:caseId", getJointChatHistory);
 router.get("/participants/:caseId", getCaseParticipants);
 
 module.exports = router;

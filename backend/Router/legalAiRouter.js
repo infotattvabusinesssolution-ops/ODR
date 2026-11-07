@@ -12,7 +12,8 @@ const {
   translateExplain,
   compareContracts,
   legalChat,
-  eDiscovery
+  eDiscovery,
+  generateMeetingSummary
 } = require("../Controller/legalAiController");
 
 // Secure all endpoints under JWT auth token verification
@@ -29,5 +30,6 @@ router.post("/translate-explain", translateExplain);
 router.post("/compare-contracts", compareContracts);
 router.post("/chat", legalChat);
 router.post("/e-discovery", eDiscovery);
+router.post("/meeting-summary", generateMeetingSummary);
 
 module.exports = router;

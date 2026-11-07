@@ -235,6 +235,39 @@ const getChatHistory = async (req, res) => {
   }
 };
 
+const getJointChatHistory = async (req, res) => {
+  try {
+    const { caseId } = req.params;
+    if (!caseId) {
+      return res.status(400).json({ success: false, message: "caseId is required" });
+    }
+
+    const caseRecord = await Case.findOne(
+      mongoose.Types.ObjectId.isValid(caseId) ? { $or: [{ _id: caseId }, { caseId }] } : { caseId }
+    );
+    const caseIdVariants = caseRecord
+      ? [String(caseRecord.caseId), String(caseRecord._id)].filter(Boolean)
+      : [String(caseId)];
+
+    const history = await ChatMessage.find({
+      caseId: { $in: caseIdVariants },
+      $or: [
+        { isJointThread: true },
+        { receiverRole: "all" },
+        { receiverRole: "joint" },
+        { receiverId: null },
+      ],
+    })
+      .populate("senderId", "name email role")
+      .sort({ timestamp: 1 });
+
+    res.status(200).json({ success: true, data: history });
+  } catch (error) {
+    console.error("Fetch joint chat history error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch joint chat history", error: error.message });
+  }
+};
+
 const getCaseParticipants = async (req, res) => {
   try {
     const { caseId } = req.params;
@@ -362,6 +395,7 @@ const getMyCases = async (req, res) => {
 module.exports = {
   handleChatMessage,
   getChatHistory,
+  getJointChatHistory,
   getCaseParticipants,
   getMyCases,
 };
