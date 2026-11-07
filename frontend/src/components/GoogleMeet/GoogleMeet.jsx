@@ -150,35 +150,7 @@ export default function GoogleMeet() {
   // In-Call Chat Box (Everyone texts one by one)
   const [showChatDrawer, setShowChatDrawer] = useState(false);
   const [chatMessageText, setChatMessageText] = useState("");
-  const [chatMessages, setChatMessages] = useState([
-    {
-      id: 1,
-      sender: "Hon'ble Presiding Mediator",
-      role: "Mediator",
-      roleColor: "#8b5cf6",
-      text: "Good morning counsels and parties. The virtual dispute hearing is now in formal session. Please state your appearances.",
-      time: "10:30 AM",
-      isSelf: false,
-    },
-    {
-      id: 2,
-      sender: "Adv. Rajesh Sharma (Claimant)",
-      role: "Claimant Counsel",
-      roleColor: "#3b82f6",
-      text: "Good morning Hon'ble Arbitrator. Submitting revised Statement of Claim and Annexure A-1 in digital format.",
-      time: "10:31 AM",
-      isSelf: false,
-    },
-    {
-      id: 3,
-      sender: "Reliance Legal Team",
-      role: "Respondent",
-      roleColor: "#10b981",
-      text: "Receipt acknowledged. Reviewing digital annexures with our client. We are present and ready.",
-      time: "10:32 AM",
-      isSelf: false,
-    },
-  ]);
+  const [chatMessages, setChatMessages] = useState([]);
   const chatEndRef = useRef(null);
 
   useEffect(() => {
@@ -224,160 +196,11 @@ export default function GoogleMeet() {
   const [selectedSessionModal, setSelectedSessionModal] = useState(null);
 
   const [eventScheduleDays, setEventScheduleDays] = useState({
-    "Day 1": [
-      {
-        id: "ev-101",
-        dateDay: "16",
-        dateMonth: "NOVEMBER",
-        speakerName: "Harman Kardon",
-        speakerAvatar: "/avatars/speaker1.jpg",
-        leader: "Aslan Linker",
-        tag: "Inspire",
-        time: "05:35 AM – 08:00 AM",
-        duration: "2h 25m",
-        venue: "Room B3",
-        caseId: "ODR-2026-116",
-        caseTitle: "Harman Kardon vs. SoundCraft Dynamics Ltd.",
-        type: "arbitration",
-        typeLabel: "Commercial Arbitration",
-        description: "Formal virtual dispute proceedings regarding intellectual property licensing and audio components supply agreement.",
-        neutral: "Hon'ble Justice S. K. Mohanty (Retd.)",
-      },
-      {
-        id: "ev-102",
-        dateDay: "20",
-        dateMonth: "NOVEMBER",
-        speakerName: "Toni Duggan",
-        speakerAvatar: "/avatars/speaker2.jpg",
-        leader: "Aslan Linker",
-        tag: "Inspire",
-        time: "05:35 AM – 08:00 AM",
-        duration: "2h 25m",
-        venue: "Room D3",
-        caseId: "ODR-2026-120",
-        caseTitle: "Toni Duggan Sports Management vs. League Board",
-        type: "mediation",
-        typeLabel: "Mediation Session",
-        description: "Facilitated institutional mediation session covering sports sponsorship covenants, venue broadcast terms, and player compensation.",
-        neutral: "Adv. Rajesh Pattnaik (Senior Mediator)",
-      },
-      {
-        id: "ev-103",
-        dateDay: "18",
-        dateMonth: "NOVEMBER",
-        speakerName: "Bilial Hossain",
-        speakerAvatar: "/avatars/speaker3.jpg",
-        leader: "Aslan Linker",
-        tag: "Inspire",
-        time: "05:35 AM – 08:00 AM",
-        duration: "2h 25m",
-        venue: "Room A3",
-        caseId: "ODR-2026-118",
-        caseTitle: "Bilial Hossain Warehousing vs. Continental Cargo",
-        type: "conciliation",
-        typeLabel: "Conciliation Hearing",
-        description: "Cross-border maritime shipping settlement conference regarding unpaid storage demurrage claims.",
-        neutral: "Dr. Ananya Mishra (Conciliator)",
-      },
-    ],
-    "Day 2": [
-      {
-        id: "ev-201",
-        dateDay: "21",
-        dateMonth: "November",
-        speakerName: "M/s Apex Logistics",
-        speakerAvatar: "/avatars/speaker1.jpg",
-        leader: "Justice Mohanty",
-        tag: "Arbitration",
-        time: "10:00 AM - 12:30 PM",
-        duration: "2h 30'",
-        venue: "Room B1",
-        caseId: "ODR-2026-88",
-        caseTitle: "M/s Apex Logistics vs. Reliance Freight Corp",
-        type: "arbitration",
-        typeLabel: "Commercial Arbitration",
-        description: "High-value logistics contract dispute with digital evidentiary examination under Section 65B.",
-        neutral: "Hon'ble Justice S. K. Mohanty (Retd.)",
-      },
-      {
-        id: "ev-202",
-        dateDay: "22",
-        dateMonth: "November",
-        speakerName: "Priya Sharma",
-        speakerAvatar: "/avatars/speaker2.jpg",
-        leader: "Rajesh Pattnaik",
-        tag: "Mediation",
-        time: "02:00 PM - 04:00 PM",
-        duration: "2h 00'",
-        venue: "Room D2",
-        caseId: "ODR-2026-94",
-        caseTitle: "Priya Sharma vs. Metro Urban Developers",
-        type: "mediation",
-        typeLabel: "Mediation Conference",
-        description: "Real-estate possession delay compensation conference with mutual settlement term drafting.",
-        neutral: "Adv. Rajesh Pattnaik (Senior Mediator)",
-      },
-    ],
-    "Day 3": [
-      {
-        id: "ev-301",
-        dateDay: "24",
-        dateMonth: "November",
-        speakerName: "BlueStone Enterprises",
-        speakerAvatar: "/avatars/speaker3.jpg",
-        leader: "Dr. Ananya Mishra",
-        tag: "Conciliation",
-        time: "11:00 AM - 01:00 PM",
-        duration: "2h 00'",
-        venue: "Room A1",
-        caseId: "ODR-2026-102",
-        caseTitle: "BlueStone Enterprises vs. TechVision LLP",
-        type: "conciliation",
-        typeLabel: "Conciliation Session",
-        description: "IT Software development SLA failure dispute conciliation.",
-        neutral: "Dr. Ananya Mishra (Conciliator)",
-      },
-    ],
-    "Day 4": [
-      {
-        id: "ev-401",
-        dateDay: "26",
-        dateMonth: "November",
-        speakerName: "Kalinga Metals Ltd.",
-        speakerAvatar: "/avatars/speaker1.jpg",
-        leader: "Justice Mohanty",
-        tag: "Arbitration",
-        time: "09:30 AM - 12:00 PM",
-        duration: "2h 30'",
-        venue: "Room B2",
-        caseId: "ODR-2026-105",
-        caseTitle: "Kalinga Metals Ltd. vs. Global Ore Traders",
-        type: "arbitration",
-        typeLabel: "International Arbitration",
-        description: "Raw mineral supply pricing index dispute hearing.",
-        neutral: "Hon'ble Justice S. K. Mohanty (Retd.)",
-      },
-    ],
-    "Day 5": [
-      {
-        id: "ev-501",
-        dateDay: "28",
-        dateMonth: "November",
-        speakerName: "Odishatech Cloud",
-        speakerAvatar: "/avatars/speaker2.jpg",
-        leader: "Rajesh Pattnaik",
-        tag: "Mediation",
-        time: "03:00 PM - 05:00 PM",
-        duration: "2h 00'",
-        venue: "Room C3",
-        caseId: "ODR-2026-110",
-        caseTitle: "Odishatech Cloud vs. SmartCity Infrastructure",
-        type: "mediation",
-        typeLabel: "Mediation Hearing",
-        description: "Municipal data center cloud hosting invoice settlement conference.",
-        neutral: "Adv. Rajesh Pattnaik (Senior Mediator)",
-      },
-    ],
+    "Day 1": [],
+    "Day 2": [],
+    "Day 3": [],
+    "Day 4": [],
+    "Day 5": [],
   });
 
   // Schedule Form
@@ -388,44 +211,99 @@ export default function GoogleMeet() {
   const [formDuration, setFormDuration] = useState("60 mins");
   const [formNeutral, setFormNeutral] = useState("Presiding Mediator");
 
-
   // Fetch real scheduled hearings from backend
   useEffect(() => {
     const fetchBackendHearings = async () => {
       try {
-        const userEmail = localStorage.getItem("userEmail") || "";
-        if (!userEmail) return;
-        const res = await axiosInstance.post("/respondent/get-hearing-by-caseId", {
-          email: userEmail,
-        });
+        let hearingsList = [];
 
-        if (res.data && res.data.hearings && res.data.hearings.length > 0) {
-          const mapped = res.data.hearings.map((h, i) => ({
-            id: h._id || `ev-dyn-${i}`,
-            dateDay: (h.date || "").split("-")[2] || "21",
-            dateMonth: "November",
-            speakerName: h.caseName || `Hearing #${h.caseId}`,
-            speakerAvatar: "/avatars/speaker1.jpg",
-            leader: h.Judge || "Presiding Mediator",
-            tag: h.hearingType || "Arbitration",
-            time: h.time || "10:30 AM",
-            duration: h.duration || "45 mins",
-            venue: h.location || "Virtual Chamber",
-            caseId: h.caseId || "ODR-2026",
-            caseTitle: h.caseName || `Case #${h.caseId}`,
-            type: (h.hearingType || "arbitration").toLowerCase(),
-            typeLabel: h.hearingType || "Hearing Session",
-            description: h.notes || "Official institutional hearing session.",
-            neutral: h.Judge || "Mediator",
-          }));
+        // 1. First try admin endpoint which returns all scheduled hearings
+        try {
+          const adminRes = await axiosInstance.get("/admin/get-new-hearing");
+          if (adminRes.data && Array.isArray(adminRes.data.data) && adminRes.data.data.length > 0) {
+            hearingsList = adminRes.data.data;
+          }
+        } catch (adminErr) {
+          console.warn("Admin hearings fetch fallback:", adminErr.message);
+        }
 
-          setEventScheduleDays((prev) => ({
-            ...prev,
-            "Day 1": [...mapped, ...(prev["Day 1"] || [])],
-          }));
+        // 2. If empty, try respondent endpoint as fallback
+        if (hearingsList.length === 0) {
+          const userEmail = localStorage.getItem("userEmail") || "";
+          if (userEmail) {
+            try {
+              const respRes = await axiosInstance.post("/respondent/get-hearing-by-caseId", {
+                email: userEmail,
+              });
+              if (respRes.data && Array.isArray(respRes.data.hearings) && respRes.data.hearings.length > 0) {
+                hearingsList = respRes.data.hearings;
+              }
+            } catch (_) {}
+          }
+        }
+
+        if (hearingsList && hearingsList.length > 0) {
+          const parseDateInfo = (dateStr, createdAt) => {
+            const raw = dateStr || createdAt;
+            if (!raw) return { day: "21", month: "NOV" };
+            try {
+              const d = new Date(raw);
+              if (!isNaN(d.getTime())) {
+                const day = String(d.getDate()).padStart(2, "0");
+                const month = d.toLocaleString("en-US", { month: "short" }).toUpperCase();
+                return { day, month };
+              }
+            } catch (_) {}
+            return { day: "21", month: "NOV" };
+          };
+
+          const typeLabels = {
+            arbitration: "Arbitration Hearing",
+            mediation: "Mediation Session",
+            conciliation: "Conciliation Conference",
+            initialhearing: "Initial Hearing",
+            pretrialconference: "Pre-Trial Conference",
+          };
+
+          const mapped = hearingsList.map((h, i) => {
+            const dateInfo = parseDateInfo(h.date, h.createdAt);
+            const rawType = (h.hearingType || "arbitration").toLowerCase().replace(/[\s_-]/g, "");
+            const typeLabel = typeLabels[rawType] || h.hearingType || "Hearing Session";
+            const neutralName = h.Judge || h.judge || (h.neutral && h.neutral.name) || "Presiding Mediator";
+            const title = h.caseName || (h.caseId ? "Dispute Case #" + h.caseId : "Dispute Hearing");
+
+            return {
+              id: h._id || "ev-dyn-" + i,
+              dateDay: dateInfo.day,
+              dateMonth: dateInfo.month,
+              speakerName: title,
+              speakerAvatar: "/avatars/speaker1.jpg",
+              leader: neutralName,
+              tag: typeLabel,
+              time: h.time || "10:00 AM",
+              duration: h.duration ? (String(h.duration).includes("min") || String(h.duration).includes("hr") ? h.duration : h.duration + " mins") : "60 mins",
+              venue: h.location || "Virtual Chamber",
+              caseId: h.caseId || "ODR-2026",
+              caseTitle: title,
+              type: rawType,
+              typeLabel: typeLabel,
+              description: h.notes || "Official electronic dispute resolution proceeding conducted pursuant to institutional arbitration and conciliation frameworks.",
+              neutral: neutralName,
+              meetLink: h.meetLink || (window.location.origin + "/meet/" + (h.caseId || "chamber")),
+            };
+          });
+
+          // Day 1: All active hearings; Day 2-5: filtered by date day if matched
+          setEventScheduleDays({
+            "Day 1": mapped,
+            "Day 2": mapped.filter((item) => item.dateDay === "21" || item.dateDay === "22"),
+            "Day 3": mapped.filter((item) => item.dateDay === "23" || item.dateDay === "24"),
+            "Day 4": mapped.filter((item) => item.dateDay === "25" || item.dateDay === "26"),
+            "Day 5": mapped.filter((item) => item.dateDay === "27" || item.dateDay === "28"),
+          });
         }
       } catch (err) {
-        console.warn("Notice: Backend hearings fetch for chamber:", err.message);
+        console.warn("Notice: Backend hearings fetch error:", err.message);
       }
     };
 
@@ -1327,7 +1205,8 @@ export default function GoogleMeet() {
 
     setEventScheduleDays((prev) => ({
       ...prev,
-      [activeDayTab]: [...(prev[activeDayTab] || []), newEvent],
+      [activeDayTab]: [newEvent, ...(prev[activeDayTab] || [])],
+      ...(activeDayTab !== "Day 1" ? { "Day 1": [newEvent, ...(prev["Day 1"] || [])] } : {}),
     }));
 
     setFormCaseId("");
@@ -1402,7 +1281,7 @@ export default function GoogleMeet() {
               <input
                 type="text"
                 className="uom-join-input"
-                placeholder="Enter Case ID (e.g. ODR-2026-88) or Meeting Link..."
+                placeholder="Enter Case ID (e.g. CASE-2026-0022) or Meeting Link..."
                 value={joinQuery}
                 onChange={(e) => setJoinQuery(e.target.value)}
               />
@@ -1662,7 +1541,7 @@ export default function GoogleMeet() {
                 <input
                   type="text"
                   className="uom-form-input"
-                  placeholder="e.g. ODR-2026-115"
+                  placeholder="e.g. CASE-2026-0014"
                   value={formCaseId}
                   onChange={(e) => setFormCaseId(e.target.value)}
                   required
@@ -1674,7 +1553,7 @@ export default function GoogleMeet() {
                 <input
                   type="text"
                   className="uom-form-input"
-                  placeholder="e.g. Kumar Infra vs. State Trading Agency"
+                  placeholder="e.g. Non payment vs Opposite Party"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
                   required
@@ -2062,6 +1941,11 @@ export default function GoogleMeet() {
 
                   {/* Message List */}
                   <div className="uom-chat-messages">
+                    {chatMessages.length === 0 && (
+                      <div style={{ textAlign: "center", color: "#94a3b8", padding: "30px 15px", fontSize: "12.5px" }}>
+                        No messages yet. Send a message to participants in this chamber.
+                      </div>
+                    )}
                     {chatMessages.map((msg) => (
                       <div
                         key={msg.id}
