@@ -169,39 +169,15 @@ export const documentDetailsApi = {
     }
   },
 
-const triggerBlobDownload = (response, fallbackName = "downloaded-file") => {
-  const blob = new Blob([response.data], {
-    type: response.headers["content-type"] || "application/octet-stream",
-  });
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  let fileName = fallbackName;
-  const contentDisposition = response.headers["content-disposition"];
-  if (contentDisposition) {
-    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;\r\n]+)/i);
-    const basicMatch = contentDisposition.match(/filename="?([^";\r\n]+)"?/i);
-    const rawName = (utf8Match && utf8Match[1]) || (basicMatch && basicMatch[1]);
-    if (rawName) {
-      try {
-        fileName = decodeURIComponent(rawName);
-      } catch {
-        fileName = rawName;
+  downloadSubmittedDocument: async (id, docName) => {
+    const response = await axiosInstance.get(
+      `/admin/download-submitted-document/${id}`,
+      {
+        responseType: "blob",
       }
-    }
-  }
-  link.setAttribute("download", fileName);
-  document.body.appendChild(link);
-  link.click();
-  setTimeout(() => {
-    link.remove();
-    window.URL.revokeObjectURL(url);
-  }, 100);
-  return true;
-};
-
-  // Update Wait -> keeping file order clean; placed helper inside module scope above downloadSubmittedDocument
-  //Wait: check where line 140+ is — let's put triggerBlobDownload at top of AdminApi.js instead!
+    );
+    return triggerBlobDownload(response, docName || "submitted-document");
+  },
 
   newScheduleHearing: async (formData) => {
     try {

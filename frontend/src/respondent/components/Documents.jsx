@@ -21,7 +21,6 @@ import { useEffect, useState } from "react";
 import UploadDocument from "../../respondent/components/Modal/uploadDocument.jsx";
 import ModalComponent from "./Modal/modalComponent.jsx";
 import axiosInstance, {
-  getApiBaseUrl,
   resolveFileUrl,
   getDownloadFileUrl,
 } from "../../api/axiosConfig";
