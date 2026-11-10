@@ -10,11 +10,11 @@ import {
   Clock,
   Loader2,
   X,
-  ExternalLink,
 } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "react-toastify";
 import ModalComponent from "./Modal/ModalComponent";
+import DocumentPreviewModal from "./Modal/DocumentPreviewModal";
 import axiosInstance from "../../api/axiosConfig";
 
 export default function UploadAwards() {
@@ -773,124 +773,12 @@ export default function UploadAwards() {
         </ModalComponent>
       )}
       {/* Document Preview Overlay */}
-      {viewingAward && (
-        <div 
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100vw",
-            height: "100vh",
-            backgroundColor: "rgba(0,0,0,0.8)",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 9999,
-            padding: "20px"
-          }}
-          onClick={() => setViewingAward(null)}
-        >
-          <div 
-            style={{
-              width: "90%",
-              maxWidth: "1000px",
-              height: "90%",
-              backgroundColor: "#fff",
-              borderRadius: "8px",
-              overflow: "hidden",
-              display: "flex",
-              flexDirection: "column",
-              position: "relative"
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ padding: "15px", borderBottom: "1px solid #eee", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h3 style={{ margin: 0 }}>Document Preview - {viewingAward.fileName}</h3>
-              <button 
-                onClick={() => setViewingAward(null)}
-                style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}
-              >
-                <X size={24} color="#666" />
-              </button>
-            </div>
-            
-            <div style={{ flex: 1, backgroundColor: "#f8f9fa", position: "relative" }}>
-              {(viewingAward.fileUrl.toLowerCase().endsWith('.png') || 
-                viewingAward.fileUrl.toLowerCase().endsWith('.jpg') || 
-                viewingAward.fileUrl.toLowerCase().endsWith('.jpeg') || 
-                viewingAward.fileUrl.toLowerCase().endsWith('.gif')) ? (
-                <img 
-                  src={viewingAward.fileUrl} 
-                  alt="Document" 
-                  style={{ width: "100%", height: "100%", objectFit: "contain" }} 
-                />
-              ) : (
-                <div style={{ flex: 1, backgroundColor: "#f8f9fa", position: "relative", overflow: "hidden" }}>
-                  <img 
-                    src={viewingAward.fileUrl.replace(/\.pdf$/i, '.jpg')} 
-                    alt="Document Preview" 
-                    style={{ width: "100%", height: "100%", objectFit: "contain", backgroundColor: "#333" }} 
-                    onError={(e) => {
-                      // Fallback if the image conversion fails
-                      e.target.style.display = 'none';
-                      e.target.nextSibling.style.display = 'flex';
-                    }}
-                  />
-                  <div style={{ display: "none", width: "100%", height: "100%", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "2rem" }}>
-                    <FileText size={64} color="#94a3b8" style={{ marginBottom: "1rem" }} />
-                    <h3 style={{ color: "#334155", marginBottom: "0.5rem" }}>Preview Unavailable</h3>
-                    <p style={{ color: "#64748b", marginBottom: "2rem" }}>Please download the document to view it.</p>
-                  </div>
-                  <a 
-                    href={viewingAward.fileUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    style={{
-                      position: "absolute",
-                      bottom: "20px",
-                      right: "20px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      padding: "10px 20px",
-                      backgroundColor: "#0ea5e9",
-                      color: "#fff",
-                      textDecoration: "none",
-                      borderRadius: "6px",
-                      fontWeight: "500",
-                      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
-                    }}
-                  >
-                    <ExternalLink size={18} />
-                    Open Original PDF
-                  </a>
-                </div>
-              )}
-            </div>
-            
-            <div style={{ padding: "10px 15px", borderTop: "1px solid #eee", textAlign: "right" }}>
-              <a 
-                href={viewingAward.fileUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                style={{
-                  display: "inline-block",
-                  padding: "8px 16px",
-                  backgroundColor: "#007bff",
-                  color: "#fff",
-                  textDecoration: "none",
-                  borderRadius: "4px",
-                  fontWeight: "500",
-                  fontSize: "14px"
-                }}
-              >
-                Download Original
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
+      <DocumentPreviewModal
+        isOpen={Boolean(viewingAward)}
+        fileUrl={viewingAward?.fileUrl}
+        title={viewingAward ? `Document Preview - ${viewingAward.fileName}` : "Document Preview"}
+        onClose={() => setViewingAward(null)}
+      />
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
