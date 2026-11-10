@@ -217,47 +217,49 @@ const buildCaseEvidences = (caseItem, matchingUploadDocs) => {
   return evidences;
 };
 
+// Shared helper to attach deduplicated UploadDocument + Case.file evidences to cases
+const attachEvidencesToCases = async (cases, extraFields = () => ({})) => {
+  const allUploadDocs = await adminDocument.find().sort({ createdAt: 1 }).lean();
+
+  const docsByCaseKey = new Map();
+  for (const doc of allUploadDocs) {
+    const key = doc.caseId ? String(doc.caseId).trim() : "";
+    if (!key) continue;
+    if (!docsByCaseKey.has(key)) docsByCaseKey.set(key, []);
+    docsByCaseKey.get(key).push(doc);
+  }
+
+  return cases.map((c) => {
+    const byCaseId = c.caseId ? docsByCaseKey.get(String(c.caseId).trim()) || [] : [];
+    const byObjectId = docsByCaseKey.get(String(c._id)) || [];
+    const matchingUploadDocs = [...byCaseId, ...byObjectId];
+    const evidences = buildCaseEvidences(c, matchingUploadDocs);
+
+    return {
+      ...c.toObject(),
+      ...extraFields(c),
+      evidences,
+      documentsCount: evidences.length,
+    };
+  });
+};
+
 // API for get all case of Claimant
 const getAllClaimants = async (req, res) => {
   try {
-    // Fetch all cases and uploaded documents in parallel
-    const [cases, allUploadDocs] = await Promise.all([
-      Case.find()
-        .populate("neutral", "name email role") // ⬅ Fetch required neutral fields
-        .populate("claimant", "name email role") // ⬅ Fetch required claimant fields
-        .populate("respondent", "name email role"), // ⬅ Fetch required respondent fields
-      adminDocument.find().sort({ createdAt: 1 }).lean(),
-    ]);
-
-    // Group UploadDocument records by normalized caseId / Mongo _id
-    const docsByCaseKey = new Map();
-    for (const doc of allUploadDocs) {
-      const key = doc.caseId ? String(doc.caseId).trim() : "";
-      if (!key) continue;
-      if (!docsByCaseKey.has(key)) docsByCaseKey.set(key, []);
-      docsByCaseKey.get(key).push(doc);
-    }
+    const cases = await Case.find()
+      .populate("neutral", "name email role") // ⬅ Fetch required neutral fields
+      .populate("claimant", "name email role") // ⬅ Fetch required claimant fields
+      .populate("respondent", "name email role"); // ⬅ Fetch required respondent fields
 
     // Format createdAt date as DD-MM-YYYY and attach all evidences
-    const formattedCases = cases.map((c) => {
+    const formattedCases = await attachEvidencesToCases(cases, (c) => {
       const date = new Date(c.createdAt);
-
       const formattedDate = `${String(date.getDate()).padStart(
         2,
         "0"
       )}-${String(date.getMonth() + 1).padStart(2, "0")}-${date.getFullYear()}`;
-
-      const byCaseId = c.caseId ? docsByCaseKey.get(String(c.caseId).trim()) || [] : [];
-      const byObjectId = docsByCaseKey.get(String(c._id)) || [];
-      const matchingUploadDocs = [...byCaseId, ...byObjectId];
-      const evidences = buildCaseEvidences(c, matchingUploadDocs);
-
-      return {
-        ...c.toObject(),
-        createdAt: formattedDate,
-        evidences,
-        documentsCount: evidences.length,
-      };
+      return { createdAt: formattedDate };
     });
 
     // Send formatted data in response
@@ -1173,10 +1175,12 @@ const getAssignedCases = async (req, res) => {
         .sort({ createdAt: -1 });
     }
 
+    const enrichedCases = await attachEvidencesToCases(assignedCases);
+
     res.status(200).json({
       success: true,
-      count: assignedCases.length,
-      data: assignedCases,
+      count: enrichedCases.length,
+      data: enrichedCases,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

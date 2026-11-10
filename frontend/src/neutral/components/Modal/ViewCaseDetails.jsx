@@ -2,16 +2,13 @@ import React, { useState } from "react";
 import axiosInstance from "../../../api/axiosConfig";
 import { Edit2, Check, X, Loader2 } from "lucide-react";
 import DocumentPreviewModal from "./DocumentPreviewModal";
+import CaseEvidencesSection from "../../../admin/component/Modal/CaseEvidencesSection";
 
-export default function ViewCaseDetails({ assignedCases, onclose }) {
-  if (!assignedCases) {
-    return <div>No case data available</div>;
-  }
-
+export default function ViewCaseDetails({ assignedCases }) {
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [isEditingAadhar, setIsEditingAadhar] = useState(false);
-  const [isViewingDoc, setIsViewingDoc] = useState(false);
-  
+  const [previewDoc, setPreviewDoc] = useState(null);
+
   const [isEditingDisputeType, setIsEditingDisputeType] = useState(false);
   const [isEditingDisputeName, setIsEditingDisputeName] = useState(false);
   const [isEditingDisputeAmount, setIsEditingDisputeAmount] = useState(false);
@@ -20,20 +17,30 @@ export default function ViewCaseDetails({ assignedCases, onclose }) {
   const [isEditingOppositePartyName, setIsEditingOppositePartyName] = useState(false);
   const [isEditingOppositePartyEmail, setIsEditingOppositePartyEmail] = useState(false);
 
-  const [phone, setPhone] = useState(assignedCases.CustomersMobileNumber || "");
-  const [aadhar, setAadhar] = useState(assignedCases.CustomersAadharNumber || "");
-  
-  const [disputeType, setDisputeType] = useState(assignedCases.DisputeType || "");
-  const [disputeName, setDisputeName] = useState(assignedCases.DisputeName || "");
-  const [disputeAmount, setDisputeAmount] = useState(assignedCases.DisputeAmount || "");
-  
-  const [customersName, setCustomersName] = useState(assignedCases.CustomersName || "");
-  const [customersEmail, setCustomersEmail] = useState(assignedCases.CustomersEmail || "");
-  
-  const [oppositePartyName, setOppositePartyName] = useState(assignedCases.oppositePartyName || "");
-  const [oppositePartyEmail, setOppositePartyEmail] = useState(assignedCases.oppositePartyEmail || "");
+  const [phone, setPhone] = useState(assignedCases?.CustomersMobileNumber || "");
+  const [aadhar, setAadhar] = useState(assignedCases?.CustomersAadharNumber || "");
+
+  const [disputeType, setDisputeType] = useState(assignedCases?.DisputeType || "");
+  const [disputeName, setDisputeName] = useState(assignedCases?.DisputeName || "");
+  const [disputeAmount, setDisputeAmount] = useState(assignedCases?.DisputeAmount || "");
+
+  const [customersName, setCustomersName] = useState(assignedCases?.CustomersName || "");
+  const [customersEmail, setCustomersEmail] = useState(assignedCases?.CustomersEmail || "");
+
+  const [oppositePartyName, setOppositePartyName] = useState(assignedCases?.oppositePartyName || "");
+  const [oppositePartyEmail, setOppositePartyEmail] = useState(assignedCases?.oppositePartyEmail || "");
 
   const [loading, setLoading] = useState(false);
+
+  if (!assignedCases) {
+    return <div>No case data available</div>;
+  }
+
+  const evidenceCount = Array.isArray(assignedCases.evidences)
+    ? assignedCases.evidences.length
+    : assignedCases.file
+    ? 1
+    : 0;
 
   const handleUpdate = async (field, value, setEditState) => {
     setLoading(true);
@@ -295,31 +302,29 @@ export default function ViewCaseDetails({ assignedCases, onclose }) {
         <Item label="Email" value={assignedCases.neutral?.email} />
       </div>
 
-      {/* File */}
-      {assignedCases.file && (
-        <div style={styles.section}>
-          <button
-            onClick={() => setIsViewingDoc(true)}
-            style={{
-              ...styles.link,
-              background: "none",
-              border: "none",
-              padding: 0,
-              cursor: "pointer",
-              fontSize: "16px"
-            }}
-          >
-            View Document
-          </button>
-        </div>
-      )}
+      {/* Case Evidences & Documents */}
+      <div style={styles.section}>
+        <h3 style={styles.sectionTitle}>
+          Case Evidences &amp; Documents ({evidenceCount})
+        </h3>
+        <CaseEvidencesSection
+          caseData={assignedCases}
+          showThumbnails
+          onPreview={(ev) =>
+            setPreviewDoc({
+              fileUrl: ev.fileUrl,
+              title: `${ev.name}${assignedCases.caseId ? ` — ${assignedCases.caseId}` : ""}`,
+            })
+          }
+        />
+      </div>
 
       {/* Document Preview Overlay */}
       <DocumentPreviewModal
-        isOpen={isViewingDoc}
-        fileUrl={assignedCases.file}
-        title={`Document Preview${assignedCases.caseId ? ` — ${assignedCases.caseId}` : ""}`}
-        onClose={() => setIsViewingDoc(false)}
+        isOpen={Boolean(previewDoc)}
+        fileUrl={previewDoc?.fileUrl}
+        title={previewDoc?.title || "Document Preview"}
+        onClose={() => setPreviewDoc(null)}
       />
     </div>
   );

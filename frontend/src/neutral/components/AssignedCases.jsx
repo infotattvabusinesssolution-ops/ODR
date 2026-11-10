@@ -319,7 +319,9 @@ export default function AssignedCases() {
                       <div style={styles.statLabel}>Submissions</div>
                     </div>
                     <div style={styles.statItem}>
-                      <div style={styles.statNumber}>{caseItem.documentsCount || (caseItem.file ? 1 : 0)}</div>
+                      <div style={styles.statNumber}>
+                        {caseItem.documentsCount ?? (caseItem.file ? 1 : 0)}
+                      </div>
                       <div style={styles.statLabel}>Documents</div>
                     </div>
                   </div>

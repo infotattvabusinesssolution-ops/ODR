@@ -6,7 +6,11 @@ import { toast } from "react-toastify";
  * Reusable section displaying all evidences and documents linked to a case.
  * Supports viewing in a new tab, inline image thumbnails, and downloading individual files.
  */
-export default function CaseEvidencesSection({ caseData, showThumbnails = false }) {
+export default function CaseEvidencesSection({
+  caseData,
+  showThumbnails = false,
+  onPreview,
+}) {
   const [downloadingId, setDownloadingId] = useState(null);
 
   const evidences = useMemo(() => {
@@ -129,6 +133,34 @@ export default function CaseEvidencesSection({ caseData, showThumbnails = false 
         const isImg = isImageUrl(ev.fileUrl, ev.name);
         const statusStyle = getStatusStyle(ev.status);
         const isDownloading = downloadingId === ev._id;
+        const viewBtnStyle = {
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "5px",
+          padding: "6px 11px",
+          borderRadius: "6px",
+          background: "#eff6ff",
+          color: "#1d4ed8",
+          fontSize: "12px",
+          fontWeight: 600,
+          textDecoration: "none",
+          border: "1px solid #bfdbfe",
+          cursor: "pointer",
+        };
+        const thumbImg = (
+          <img
+            src={ev.fileUrl}
+            alt={ev.name}
+            style={{
+              width: "100%",
+              maxHeight: "220px",
+              objectFit: "contain",
+              background: "#f8fafc",
+              borderRadius: "6px",
+              border: "1px solid #e2e8f0",
+            }}
+          />
+        );
 
         return (
           <div
@@ -209,27 +241,26 @@ export default function CaseEvidencesSection({ caseData, showThumbnails = false 
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-                <a
-                  href={ev.fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "5px",
-                    padding: "6px 11px",
-                    borderRadius: "6px",
-                    background: "#eff6ff",
-                    color: "#1d4ed8",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    textDecoration: "none",
-                    border: "1px solid #bfdbfe",
-                  }}
-                >
-                  <Eye size={14} />
-                  View
-                </a>
+                {onPreview ? (
+                  <button
+                    type="button"
+                    onClick={() => onPreview(ev)}
+                    style={viewBtnStyle}
+                  >
+                    <Eye size={14} />
+                    View
+                  </button>
+                ) : (
+                  <a
+                    href={ev.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={viewBtnStyle}
+                  >
+                    <Eye size={14} />
+                    View
+                  </a>
+                )}
                 <button
                   type="button"
                   onClick={() => handleDownloadEvidence(ev)}
@@ -259,26 +290,33 @@ export default function CaseEvidencesSection({ caseData, showThumbnails = false 
             </div>
 
             {showThumbnails && isImg && (
-              <a
-                href={ev.fileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Click to open full size in new tab"
-                style={{ display: "block" }}
-              >
-                <img
-                  src={ev.fileUrl}
-                  alt={ev.name}
+              onPreview ? (
+                <button
+                  type="button"
+                  onClick={() => onPreview(ev)}
+                  title="Click to preview full document"
                   style={{
+                    display: "block",
                     width: "100%",
-                    maxHeight: "220px",
-                    objectFit: "contain",
-                    background: "#f8fafc",
-                    borderRadius: "6px",
-                    border: "1px solid #e2e8f0",
+                    padding: 0,
+                    border: "none",
+                    background: "none",
+                    cursor: "pointer",
                   }}
-                />
-              </a>
+                >
+                  {thumbImg}
+                </button>
+              ) : (
+                <a
+                  href={ev.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Click to open full size in new tab"
+                  style={{ display: "block" }}
+                >
+                  {thumbImg}
+                </a>
+              )
             )}
           </div>
         );
