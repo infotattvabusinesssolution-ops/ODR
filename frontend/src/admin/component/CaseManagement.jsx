@@ -441,14 +441,21 @@ export default function CaseManagement() {
 
                   <td style={styles.tableCell}>
                     <button
+                      type="button"
+                      title="View all evidences for this case"
+                      onClick={() => {
+                        setSelectedCase(caseItem);
+                        setOpenModal("view");
+                      }}
                       style={{
-                        backgroundColor: "#e0e0e0",
-                        color: "#333",
-                        border: "none",
+                        backgroundColor: caseItem.documentsCount > 0 ? "#eff6ff" : "#e0e0e0",
+                        color: caseItem.documentsCount > 0 ? "#1d4ed8" : "#333",
+                        border: caseItem.documentsCount > 0 ? "1px solid #bfdbfe" : "none",
                         padding: "0.3rem 0.7rem",
                         borderRadius: "4px",
                         cursor: "pointer",
                         fontSize: "12px",
+                        fontWeight: 600,
                       }}
                     >
                       {caseItem.documentsCount}
@@ -473,16 +480,19 @@ export default function CaseManagement() {
                   </td>
                   <td style={styles.tableCell}>
                     <div style={styles.actionButtons}>
-                      {typeof caseItem.file === "string" && (
-                        <a
+                      {((Array.isArray(caseItem.evidences) && caseItem.evidences.length > 0) ||
+                        typeof caseItem.file === "string") && (
+                        <button
+                          type="button"
                           style={styles.actionButton("#2196f3")}
-                          title="View"
-                          href={caseItem.file}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          title="View All Evidences"
+                          onClick={() => {
+                            setSelectedCase(caseItem);
+                            setOpenModal("view");
+                          }}
                         >
                           <Eye size={14} />
-                        </a>
+                        </button>
                       )}
                       <button
                         style={styles.actionButton("#ff9800")}
@@ -565,19 +575,37 @@ export default function CaseManagement() {
         </ModalComponent>
       )}
 
-      {openModal === "view" && (
-        <ModalComponent title="" onClose={() => setOpenModal(null)}>
+      {openModal === "view" && selectedCase && (
+        <ModalComponent
+          title=""
+          onClose={() => {
+            setOpenModal(null);
+            setSelectedCase(null);
+          }}
+        >
           <ViewFile
             caseData={selectedCase}
-            onClose={() => setOpenModal(null)}
+            onClose={() => {
+              setOpenModal(null);
+              setSelectedCase(null);
+            }}
           />
         </ModalComponent>
       )}
-      {openModal === "details" && (
-        <ModalComponent title="" onClose={() => setOpenModal(null)}>
+      {openModal === "details" && selectedCase && (
+        <ModalComponent
+          title=""
+          onClose={() => {
+            setOpenModal(null);
+            setSelectedCase(null);
+          }}
+        >
           <AllDetails
             caseData={selectedCase}
-            onClose={() => setOpenModal(null)}
+            onClose={() => {
+              setOpenModal(null);
+              setSelectedCase(null);
+            }}
           />
         </ModalComponent>
       )}

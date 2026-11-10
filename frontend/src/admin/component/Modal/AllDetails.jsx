@@ -1,4 +1,5 @@
 import React from "react";
+import CaseEvidencesSection from "./CaseEvidencesSection";
 
 export default function AllDetails({ caseData, onclose }) {
   if (!caseData) {
@@ -93,19 +94,19 @@ export default function AllDetails({ caseData, onclose }) {
         <Item label="Email" value={caseData.neutral?.email} />
       </div>
 
-      {/* File */}
-      {caseData.file && (
-        <div style={styles.section}>
-          <a
-            href={caseData.file}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={styles.link}
-          >
-            View Document
-          </a>
-        </div>
-      )}
+      {/* Evidences & Documents */}
+      <div style={styles.section}>
+        <h3 style={styles.sectionTitle}>
+          Case Evidences &amp; Documents (
+          {Array.isArray(caseData.evidences)
+            ? caseData.evidences.length
+            : caseData.file
+            ? 1
+            : 0}
+          )
+        </h3>
+        <CaseEvidencesSection caseData={caseData} />
+      </div>
     </div>
   );
 }

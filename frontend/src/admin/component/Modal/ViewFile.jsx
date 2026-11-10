@@ -1,31 +1,80 @@
 import React from "react";
+import { FolderOpen } from "lucide-react";
+import CaseEvidencesSection from "./CaseEvidencesSection";
 
-const ViewFile = ({ onClose }) => {
+/**
+ * Modal showing all evidences and submitted documents attached to a case.
+ */
+const ViewFile = ({ caseData }) => {
+  const count = Array.isArray(caseData?.evidences)
+    ? caseData.evidences.length
+    : caseData?.file
+    ? 1
+    : 0;
+
   return (
-    <div>
-      <div style={{ padding: "20px" }}>
-        <div className="px-20">
-          <h2 className="text-3xl" style={{ marginBottom: "30px" }}>
-            View Attached File
-          </h2>
+    <div
+      style={{
+        width: "100%",
+        maxWidth: "740px",
+        padding: "20px",
+        maxHeight: "82vh",
+        overflowY: "auto",
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          marginBottom: "16px",
+          paddingBottom: "12px",
+          borderBottom: "1px solid #e2e8f0",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <div
-            className="flex flex-col items-center gap-4 overflow-y-auto"
             style={{
-              maxHeight: "400px", // limit the visible area height
-              width: "100%",
-              border: "1px solid #ddd",
+              width: "38px",
+              height: "38px",
               borderRadius: "8px",
-              padding: "10px",
+              background: "#eff6ff",
+              color: "#2563eb",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            <img
-              src="https://res.cloudinary.com/demo/image/upload/v1693456789/sample.jpg"
-              alt="Case Document"
-              style={{ width: "100%", height: "auto", borderRadius: "8px" }}
-            />
+            <FolderOpen size={20} />
+          </div>
+          <div>
+            <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#0f172a", margin: 0 }}>
+              Case Evidences &amp; Documents
+            </h2>
+            <div style={{ fontSize: "12.5px", color: "#64748b", marginTop: "2px" }}>
+              {caseData?.caseId || "Case"}
+              {caseData?.DisputeName ? ` — ${caseData.DisputeName}` : ""}
+            </div>
           </div>
         </div>
+        <span
+          style={{
+            background: "#f1f5f9",
+            color: "#334155",
+            fontWeight: 700,
+            fontSize: "12px",
+            padding: "4px 10px",
+            borderRadius: "999px",
+          }}
+        >
+          {count} {count === 1 ? "File" : "Files"}
+        </span>
       </div>
+
+      <CaseEvidencesSection caseData={caseData} showThumbnails />
     </div>
   );
 };

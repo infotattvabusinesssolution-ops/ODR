@@ -159,15 +159,86 @@ const AdminData = async (req, res) => {
   }
 };
 
+// Helper to collect all deduplicated evidence/document files for a case
+const buildCaseEvidences = (caseItem, matchingUploadDocs) => {
+  const evidences = [];
+  const seenUrls = new Set();
+
+  const pushEvidence = (entry) => {
+    const cleanUrl = typeof entry.fileUrl === "string" ? entry.fileUrl.trim() : "";
+    if (!cleanUrl || seenUrls.has(cleanUrl)) return;
+    seenUrls.add(cleanUrl);
+    evidences.push({ ...entry, fileUrl: cleanUrl });
+  };
+
+  for (const doc of matchingUploadDocs) {
+    const subDocs = Array.isArray(doc.documents) && doc.documents.length > 0 ? doc.documents : null;
+    if (subDocs) {
+      for (const sub of subDocs) {
+        pushEvidence({
+          _id: sub._id || doc._id,
+          documentRecordId: doc._id,
+          name: sub.fileName || doc.DocumentName || "Submitted Evidence",
+          fileUrl: sub.fileUrl || doc.fileUrl,
+          type: doc.Type || "Evidence",
+          status: doc.status || "Pending",
+          uploadedBy: doc.UploadedBy || "Party",
+          uploadedAt: sub.uploadedAt || doc.uploadedAt || doc.createdAt,
+        });
+      }
+    } else if (doc.fileUrl) {
+      pushEvidence({
+        _id: doc._id,
+        documentRecordId: doc._id,
+        name: doc.DocumentName || "Submitted Evidence",
+        fileUrl: doc.fileUrl,
+        type: doc.Type || "Evidence",
+        status: doc.status || "Pending",
+        uploadedBy: doc.UploadedBy || "Party",
+        uploadedAt: doc.uploadedAt || doc.createdAt,
+      });
+    }
+  }
+
+  // Include initial Case.file if not already represented in UploadDocument records
+  if (typeof caseItem.file === "string" && caseItem.file.trim()) {
+    pushEvidence({
+      _id: `${caseItem._id}-primary`,
+      documentRecordId: null,
+      name: "Primary Case Document",
+      fileUrl: caseItem.file,
+      type: "Case Filing",
+      status: caseItem.status || "Submitted",
+      uploadedBy: "Claimant",
+      uploadedAt: caseItem.createdAt,
+    });
+  }
+
+  return evidences;
+};
+
 // API for get all case of Claimant
 const getAllClaimants = async (req, res) => {
   try {
-    // Fetch all cases and populate claimant details
-    const cases = await Case.find()
-      .populate("neutral", "name email role") // ⬅ Fetch required neutral fields
-      .populate("claimant", "name email role") // ⬅ Fetch required claimant fields
-      .populate("respondent", "name email role"); // ⬅ Fetch required respondent fields
-    // Format createdAt date as DD-MM-YYYY
+    // Fetch all cases and uploaded documents in parallel
+    const [cases, allUploadDocs] = await Promise.all([
+      Case.find()
+        .populate("neutral", "name email role") // ⬅ Fetch required neutral fields
+        .populate("claimant", "name email role") // ⬅ Fetch required claimant fields
+        .populate("respondent", "name email role"), // ⬅ Fetch required respondent fields
+      adminDocument.find().sort({ createdAt: 1 }).lean(),
+    ]);
+
+    // Group UploadDocument records by normalized caseId / Mongo _id
+    const docsByCaseKey = new Map();
+    for (const doc of allUploadDocs) {
+      const key = doc.caseId ? String(doc.caseId).trim() : "";
+      if (!key) continue;
+      if (!docsByCaseKey.has(key)) docsByCaseKey.set(key, []);
+      docsByCaseKey.get(key).push(doc);
+    }
+
+    // Format createdAt date as DD-MM-YYYY and attach all evidences
     const formattedCases = cases.map((c) => {
       const date = new Date(c.createdAt);
 
@@ -176,10 +247,16 @@ const getAllClaimants = async (req, res) => {
         "0"
       )}-${String(date.getMonth() + 1).padStart(2, "0")}-${date.getFullYear()}`;
 
+      const byCaseId = c.caseId ? docsByCaseKey.get(String(c.caseId).trim()) || [] : [];
+      const byObjectId = docsByCaseKey.get(String(c._id)) || [];
+      const matchingUploadDocs = [...byCaseId, ...byObjectId];
+      const evidences = buildCaseEvidences(c, matchingUploadDocs);
+
       return {
         ...c.toObject(),
         createdAt: formattedDate,
-        documentsCount: c.file ? 1 : 0, // 👈 since only one file per case
+        evidences,
+        documentsCount: evidences.length,
       };
     });
 
