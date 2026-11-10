@@ -1,5 +1,36 @@
 import axiosInstance from "./axiosConfig";
 
+const triggerBlobDownload = (response, fallbackName = "downloaded-file") => {
+  const blob = new Blob([response.data], {
+    type: response.headers["content-type"] || "application/octet-stream",
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  let fileName = fallbackName;
+  const contentDisposition = response.headers["content-disposition"];
+  if (contentDisposition) {
+    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;\r\n]+)/i);
+    const basicMatch = contentDisposition.match(/filename="?([^";\r\n]+)"?/i);
+    const rawName = (utf8Match && utf8Match[1]) || (basicMatch && basicMatch[1]);
+    if (rawName) {
+      try {
+        fileName = decodeURIComponent(rawName);
+      } catch {
+        fileName = rawName;
+      }
+    }
+  }
+  link.setAttribute("download", fileName);
+  document.body.appendChild(link);
+  link.click();
+  setTimeout(() => {
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  }, 100);
+  return true;
+};
+
 export const caseApi = {
   // 🟢 Get all cases
   getAllCases: async () => {
@@ -37,24 +68,10 @@ export const caseApi = {
       const response = await axiosInstance.get(
         `/admin/download-case-file/${id}`,
         {
-          responseType: "blob", // Important for file downloads
+          responseType: "blob",
         }
       );
-      // Create a URL for the downloaded file
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      // Extract filename from content-disposition header
-      const contentDisposition = response.headers["content-disposition"];
-      let fileName = "downloaded_file";
-      if (contentDisposition) {
-        const fileNameMatch = contentDisposition.match(/filename="?(.+)"?/);
-        if (fileNameMatch.length === 2) fileName = fileNameMatch[1];
-      }
-      link.setAttribute("download", fileName);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      return triggerBlobDownload(response, "case-document");
     } catch (error) {
       throw (
         error.response?.data || {
@@ -152,44 +169,39 @@ export const documentDetailsApi = {
     }
   },
 
-  downloadSubmittedDocument: async (id, docName) => {
-    try {
-      const response = await axiosInstance.get(
-        `/admin/download-submitted-document/${id}`,
-        {
-          responseType: "blob",
-        }
-      );
-      const blob = new Blob([response.data], {
-        type: response.headers["content-type"] || "application/octet-stream",
-      });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      let fileName = docName || "submitted-document";
-      const contentDisposition = response.headers["content-disposition"];
-      if (contentDisposition) {
-        const fileNameMatch = contentDisposition.match(/filename="?([^";]+)"?/);
-        if (fileNameMatch && fileNameMatch[1]) {
-          try {
-            fileName = decodeURIComponent(fileNameMatch[1]);
-          } catch (e) {
-            fileName = fileNameMatch[1];
-          }
-        }
+const triggerBlobDownload = (response, fallbackName = "downloaded-file") => {
+  const blob = new Blob([response.data], {
+    type: response.headers["content-type"] || "application/octet-stream",
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  let fileName = fallbackName;
+  const contentDisposition = response.headers["content-disposition"];
+  if (contentDisposition) {
+    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;\r\n]+)/i);
+    const basicMatch = contentDisposition.match(/filename="?([^";\r\n]+)"?/i);
+    const rawName = (utf8Match && utf8Match[1]) || (basicMatch && basicMatch[1]);
+    if (rawName) {
+      try {
+        fileName = decodeURIComponent(rawName);
+      } catch {
+        fileName = rawName;
       }
-      link.setAttribute("download", fileName);
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        link.remove();
-        window.URL.revokeObjectURL(url);
-      }, 100);
-      return true;
-    } catch (error) {
-      throw error;
     }
-  },
+  }
+  link.setAttribute("download", fileName);
+  document.body.appendChild(link);
+  link.click();
+  setTimeout(() => {
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  }, 100);
+  return true;
+};
+
+  // Update Wait -> keeping file order clean; placed helper inside module scope above downloadSubmittedDocument
+  //Wait: check where line 140+ is — let's put triggerBlobDownload at top of AdminApi.js instead!
 
   newScheduleHearing: async (formData) => {
     try {

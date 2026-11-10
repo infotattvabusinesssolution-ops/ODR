@@ -14,6 +14,10 @@ const https = require("https");
 const axios = require("axios");
 const crypto = require("crypto");
 const transporter = require("../../config/smtp");
+const {
+  storeUploadedFile,
+  createCaseFilingDocument,
+} = require("../../utils/fileStorage");
 
 // api for claimant register
 const ClaimantRegister = async (req, res) => {
@@ -206,25 +210,15 @@ const ClaimantaddNewCase = async (req, res) => {
 
     if (!file) return res.status(400).json({ message: "No file uploaded" });
 
-    console.log("📦 Uploading file:", file.originalname);
+    console.log("📦 Uploading file:", file ? file.originalname : "none");
 
-    // Detect file extension
-    const ext = path.extname(file.originalname).toLowerCase();
+    const storedFile = file
+      ? await storeUploadedFile(file, { folder: "uploads" })
+      : null;
 
-    const resourceType =
-      ext === ".pdf" || ext === ".doc" || ext === ".docx" || ext === ".txt"
-        ? "raw"
-        : "auto";
-
-    const uploadResult = await cloudinary.uploader.upload(file.path, {
-      folder: "uploads",
-      resource_type: resourceType,
-      use_filename: true,
-      unique_filename: false,
-      overwrite: true,
-    });
-
-    console.log("✅ Cloudinary Upload Success:", uploadResult.secure_url);
+    if (storedFile) {
+      console.log(`✅ File Stored (${storedFile.storage}):`, storedFile.fileUrl);
+    }
 
     // Generate Case Number
     const year = new Date().getFullYear();
@@ -280,7 +274,7 @@ const ClaimantaddNewCase = async (req, res) => {
       CustomersMobileNumber,
       CustomersAadharNumber,
       consent: consent === "No" ? "No" : "Yes",
-      file: uploadResult.secure_url,
+      file: storedFile ? storedFile.fileUrl : "",
       date: Date.now(),
       status: "Pending",
       claimant: claimantId || null,
@@ -289,6 +283,15 @@ const ClaimantaddNewCase = async (req, res) => {
     });
 
     await newCase.save();
+
+    if (storedFile) {
+      await createCaseFilingDocument(ClaimantDocument, {
+        caseData: newCase,
+        storedFile,
+        uploadedBy: "CLAIMANT",
+        status: "Verified",
+      });
+    }
 
     // Trigger real-time broadcast via dynamic import to avoid circular dependencies
     try {
@@ -405,9 +408,10 @@ const uploadDocumentForClaimant = async (req, res) => {
 
     const claimantEmail = claimant.email;
 
-    // 2️⃣ Upload to cloudinary
-    const uploadResult = await cloudinary.uploader.upload(filePath, {
+    // 2️⃣ Store file persistently (GridFS for PDFs/docs, Cloudinary/GridFS fallback for images)
+    const storedFile = await storeUploadedFile(file, {
       folder: "claimant_documents",
+      metadata: { caseId, claimantId },
     });
 
     // 3️⃣ Save Document in DB (Push to documents array)
@@ -415,8 +419,8 @@ const uploadDocumentForClaimant = async (req, res) => {
 
     if (caseDocument) {
       caseDocument.documents.push({
-        fileUrl: uploadResult.secure_url,
-        fileName: file.originalname,
+        fileUrl: storedFile.fileUrl,
+        fileName: storedFile.fileName,
         uploadedAt: new Date(),
       });
       await caseDocument.save();
@@ -425,17 +429,17 @@ const uploadDocumentForClaimant = async (req, res) => {
         claimantId: claimantId,
         claimantEmail: claimantEmail,
         caseId: caseId,
-        fileUrl: uploadResult.secure_url,
-        DocumentName: file.originalname,
-        fileType: file.mimetype,
-        fileSize: file.size,
+        fileUrl: storedFile.fileUrl,
+        DocumentName: storedFile.fileName,
+        fileType: storedFile.fileType,
+        fileSize: storedFile.fileSize,
         UploadedBy: "CLAIMANT",
         status: "Pending",
         uploadedAt: new Date(),
         documents: [
           {
-            fileUrl: uploadResult.secure_url,
-            fileName: file.originalname,
+            fileUrl: storedFile.fileUrl,
+            fileName: storedFile.fileName,
             uploadedAt: new Date(),
           },
         ],

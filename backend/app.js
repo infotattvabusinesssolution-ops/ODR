@@ -64,6 +64,7 @@ app.use("/api/service-requests", ServiceRequestRouter);
 app.use("/api/payments", PaymentRouter);
 app.use("/api/auth", AuthRouter);
 app.use("/api/landing", LandingRouter);
+app.use("/api/files", require("./Router/FileRouter"));
 
 // Temporary route to reset user password to password123
 app.get("/reset-password/:email", async (req, res) => {

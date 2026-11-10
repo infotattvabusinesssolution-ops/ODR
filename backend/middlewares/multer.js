@@ -1,11 +1,15 @@
 // backend/middlewares/multer.js
 const multer = require("multer");
+const fs = require("fs");
 const path = require("path");
+
+const uploadDir = path.join(process.cwd(), "uploads");
 
 // Temporary storage setup
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/"); // Folder where files are temporarily stored
+    fs.mkdirSync(uploadDir, { recursive: true });
+    cb(null, uploadDir); // Folder where files are temporarily stored
   },
   filename: (req, file, cb) => {
     const uniqueName = `${Date.now()}-${file.originalname}`;

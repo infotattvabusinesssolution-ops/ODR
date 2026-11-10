@@ -64,4 +64,30 @@ axiosInstance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+export const resolveFileUrl = (url = "") => {
+  if (!url || typeof url !== "string") return "";
+  const trimmed = url.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith("data:") || trimmed.startsWith("blob:")) {
+    return trimmed;
+  }
+  const base = getApiBaseUrl().replace(/\/+$/, "");
+  return `${base}${trimmed.startsWith("/") ? "" : "/"}${trimmed}`;
+};
+
+export const getDownloadFileUrl = (url = "") => {
+  const resolved = resolveFileUrl(url);
+  if (!resolved) return "";
+  if (resolved.includes("/image/upload/") && !resolved.includes("fl_attachment")) {
+    return resolved.replace("/image/upload/", "/image/upload/fl_attachment/");
+  }
+  if (resolved.includes("/raw/upload/") && !resolved.includes("fl_attachment")) {
+    return resolved.replace("/raw/upload/", "/raw/upload/fl_attachment/");
+  }
+  if (resolved.includes("/api/files/") && !/[?&]download=/.test(resolved)) {
+    return `${resolved}${resolved.includes("?") ? "&" : "?"}download=1`;
+  }
+  return resolved;
+};
+
 export default axiosInstance;

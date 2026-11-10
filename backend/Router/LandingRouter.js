@@ -2,9 +2,14 @@ const Express = require("express");
 const router = Express.Router();
 const path = require("path");
 const Case = require("../models/Case");
+const UploadDocument = require("../models/documentDetail");
 const upload = require("../middlewares/multer");
-const cloudinary = require("../config/cloudinary");
 const { sendDisputeEmails } = require("../Service/emailService");
+const {
+  storeUploadedFile,
+  resolveAbsoluteFileUrl,
+  createCaseFilingDocument,
+} = require("../utils/fileStorage");
 
 const fs = require("fs");
 
@@ -24,31 +29,13 @@ router.post("/contact", handleLandingUpload, async (req, res) => {
     const data = req.body;
     console.log("Received Dispute Details from Landing Page:", data);
     
-    let fileUrl = "";
-    
+    let storedFile = null;
     if (file) {
-      console.log("📦 Uploading file:", file.originalname);
-      const ext = path.extname(file.originalname).toLowerCase();
-      const resourceType =
-        ext === ".pdf" || ext === ".doc" || ext === ".docx" || ext === ".txt"
-          ? "raw"
-          : "auto";
-
-      try {
-        const uploadResult = await cloudinary.uploader.upload(file.path, {
-          folder: "uploads",
-          resource_type: resourceType,
-          use_filename: true,
-          unique_filename: false,
-          overwrite: true,
-        });
-        console.log("✅ Cloudinary Upload Success:", uploadResult.secure_url);
-        fileUrl = uploadResult.secure_url;
-      } catch (cErr) {
-        console.warn("Cloudinary upload fallback:", cErr.message);
-        fileUrl = `/uploads/${file.filename || file.originalname}`;
-      }
+      console.log("📦 Storing landing page file:", file.originalname);
+      storedFile = await storeUploadedFile(file, { folder: "uploads" });
+      console.log(`✅ File Stored (${storedFile.storage}):`, storedFile.fileUrl);
     }
+    const fileUrl = storedFile ? storedFile.fileUrl : "";
 
     // Generate caseId logic matching ClaimantController
     const year = new Date().getFullYear();
@@ -85,6 +72,15 @@ router.post("/contact", handleLandingUpload, async (req, res) => {
 
     await newCase.save();
 
+    if (storedFile) {
+      await createCaseFilingDocument(UploadDocument, {
+        caseData: newCase,
+        storedFile,
+        uploadedBy: "CLAIMANT",
+        status: "Verified",
+      });
+    }
+
     // Automatically send confirmation to filer and alert notification to admin via Hostinger SMTP
     sendDisputeEmails({
       caseId,
@@ -98,7 +94,7 @@ router.post("/contact", handleLandingUpload, async (req, res) => {
       oppositePartyName: newCase.oppositePartyName,
       oppositePartyEmail: newCase.oppositePartyEmail,
       oppositeMobile: newCase.oppositeMobile,
-      fileUrl: newCase.file,
+      fileUrl: resolveAbsoluteFileUrl(newCase.file),
       createdAt: newCase.createdAt || new Date(),
     }).catch((mailErr) => {
       console.error("Background dispute email dispatch error:", mailErr.message);

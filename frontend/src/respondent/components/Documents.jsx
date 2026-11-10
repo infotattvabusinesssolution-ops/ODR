@@ -20,7 +20,11 @@ import {
 import { useEffect, useState } from "react";
 import UploadDocument from "../../respondent/components/Modal/uploadDocument.jsx";
 import ModalComponent from "./Modal/modalComponent.jsx";
-import axiosInstance, { getApiBaseUrl } from "../../api/axiosConfig";
+import axiosInstance, {
+  getApiBaseUrl,
+  resolveFileUrl,
+  getDownloadFileUrl,
+} from "../../api/axiosConfig";
 import { toast } from "react-toastify";
 
 export default function Documents() {
@@ -120,7 +124,7 @@ export default function Documents() {
                   : "Recent",
                 caseId: item.caseId || "2024-45",
                 type: isPdf ? "PDF" : isImg ? "Images" : "Word Docs",
-                url: subDoc.fileUrl || item.fileUrl,
+                url: resolveFileUrl(subDoc.fileUrl || item.fileUrl),
                 description: item.Type || "Evidentiary submission in ODR dispute proceedings.",
               });
             });
@@ -141,7 +145,7 @@ export default function Documents() {
                 : "Recent",
               caseId: item.caseId || "2024-45",
               type: isPdf ? "PDF" : isImg ? "Images" : "Word Docs",
-              url: item.fileUrl,
+              url: resolveFileUrl(item.fileUrl),
               description: "Evidentiary submission registered with ODR Registry.",
             });
           }
@@ -192,7 +196,7 @@ export default function Documents() {
   const handleDownload = (doc) => {
     if (doc.url) {
       const a = document.createElement("a");
-      a.href = doc.url;
+      a.href = getDownloadFileUrl(doc.url);
       a.target = "_blank";
       a.download = doc.name;
       document.body.appendChild(a);

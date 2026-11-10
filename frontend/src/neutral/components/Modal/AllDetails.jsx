@@ -1,4 +1,5 @@
 import React from "react";
+import { resolveFileUrl } from "../../../api/axiosConfig";
 
 export default function AllDetails({ caseData, onclose }) {
   if (!caseData) {
@@ -97,7 +98,7 @@ export default function AllDetails({ caseData, onclose }) {
       {caseData.file && (
         <div style={styles.section}>
           <a
-            href={caseData.file}
+            href={resolveFileUrl(caseData.file)}
             target="_blank"
             rel="noopener noreferrer"
             style={styles.link}

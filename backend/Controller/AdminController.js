@@ -16,6 +16,12 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const cloudinary = require("../config/cloudinary");
+const {
+  storeUploadedFile,
+  extractFileNameFromUrl,
+  serveStoredFileDownload,
+  createCaseFilingDocument,
+} = require("../utils/fileStorage");
 
 // api for admin user register,
 const AdminUserRegister = async (req, res) => {
@@ -205,7 +211,7 @@ const buildCaseEvidences = (caseItem, matchingUploadDocs) => {
     pushEvidence({
       _id: `${caseItem._id}-primary`,
       documentRecordId: null,
-      name: "Primary Case Document",
+      name: extractFileNameFromUrl(caseItem.file, "Primary Case Document"),
       fileUrl: caseItem.file,
       type: "Case Filing",
       status: caseItem.status || "Submitted",
@@ -319,30 +325,14 @@ const downloadClaimantCaseFile = async (req, res) => {
       return res.status(404).json({ message: "File not found" });
     }
 
-    // Ensure proper raw Cloudinary URL
-    let fileUrl = caseData.file;
-    if (fileUrl.includes("/image/upload/")) {
-      fileUrl = fileUrl.replace("/image/upload/", "/raw/upload/");
-    }
-
-    const fileName = (caseData.title || "case-document") + ".pdf";
-
-    https
-      .get(fileUrl, (fileRes) => {
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader(
-          "Content-Disposition",
-          `attachment; filename="${fileName}"`
-        );
-        fileRes.pipe(res);
-      })
-      .on("error", (err) => {
-        console.error("Stream error:", err);
-        res.status(500).json({ message: "File stream failed" });
-      });
+    const fallbackName = `${caseData.caseId || caseData.DisputeName || "case-document"}`;
+    const fileName = extractFileNameFromUrl(caseData.file, fallbackName);
+    await serveStoredFileDownload(caseData.file, res, { fileName });
   } catch (error) {
     console.error("Download error:", error);
-    res.status(500).json({ message: error.message || "Server error" });
+    if (!res.headersSent) {
+      res.status(500).json({ message: error.message || "Server error" });
+    }
   }
 };
 
@@ -367,14 +357,33 @@ async function getCaseEdit(req, res) {
 const updateCase = async (req, res) => {
   try {
     const { id } = req.params;
-    const updatedFields = {
-      requestType: req.body.requestType,
-      title: req.body.title,
-      description: req.body.description,
-    };
+    const updatedFields = {};
+    const allowedFields = [
+      "requestType",
+      "title",
+      "description",
+      "DisputeName",
+      "DisputeType",
+      "DisputeAmount",
+      "oppositePartyName",
+      "oppositePartyEmail",
+      "oppositeMobile",
+      "DisputeSummary",
+    ];
 
+    for (const key of allowedFields) {
+      if (req.body[key] !== undefined) {
+        updatedFields[key] = req.body[key];
+      }
+    }
+
+    let storedFile = null;
     if (req.file) {
-      updatedFields.file = req.file.path; // Or Cloudinary URL
+      storedFile = await storeUploadedFile(req.file, {
+        folder: "uploads",
+        metadata: { caseObjectId: id },
+      });
+      updatedFields.file = storedFile.fileUrl;
     }
 
     const updatedCase = await Case.findByIdAndUpdate(id, updatedFields, {
@@ -383,6 +392,15 @@ const updateCase = async (req, res) => {
 
     if (!updatedCase) {
       return res.status(404).json({ message: "Case not found" });
+    }
+
+    if (storedFile) {
+      await createCaseFilingDocument(adminDocument, {
+        caseData: updatedCase,
+        storedFile,
+        uploadedBy: "ADMIN",
+        status: "Verified",
+      });
     }
 
     res.json({ success: true, data: updatedCase });
@@ -552,64 +570,40 @@ const documentUpload = async (req, res) => {
       }
     }
 
-    // Detect file type for Cloudinary
+    // Store persistently (GridFS for PDFs/docs, Cloudinary/GridFS fallback for images)
     const ext = path.extname(file.originalname).toLowerCase();
-    const resourceType =
-      ext === ".pdf" || ext === ".doc" || ext === ".docx" || ext === ".txt"
-        ? "raw"
-        : "auto";
-
-    // Upload to Cloudinary
-    const uploadResult = await cloudinary.uploader.upload(file.path, {
+    const storedFile = await storeUploadedFile(file, {
       folder: "documents",
-      resource_type: resourceType,
-      use_filename: true,
-      unique_filename: false,
-      overwrite: true,
+      metadata: { caseId: caseData ? caseData.caseId : caseId || "GENERAL-DOC" },
     });
 
     const targetCaseId = caseData ? caseData.caseId : (caseId || "GENERAL-DOC");
     const targetClaimantName = caseData
       ? (caseData.CustomersName || caseData.claimant?.name || "Claimant")
       : (claimantName || "Claimant");
+    const resolvedFileType = ext.replace(".", "").toUpperCase() || storedFile.fileType;
 
-    let caseDocument = await adminDocument.findOne({ caseId: targetCaseId });
-
-    if (caseDocument) {
-      caseDocument.documents.push({
-        fileUrl: uploadResult.secure_url,
-        fileName: file.originalname,
-        uploadedAt: new Date(),
-      });
-      caseDocument.DocumentName = file.originalname;
-      caseDocument.fileUrl = uploadResult.secure_url;
-      caseDocument.fileType = ext.replace(".", "").toUpperCase() || file.mimetype;
-      caseDocument.fileSize = file.size;
-      caseDocument.uploadedAt = new Date();
-      if (documentType) caseDocument.Type = documentType;
-      await caseDocument.save();
-    } else {
-      caseDocument = await adminDocument.create({
-        caseId: targetCaseId,
-        claimantName: targetClaimantName,
-        DocumentName: file.originalname,
-        fileUrl: uploadResult.secure_url,
-        fileType: ext.replace(".", "").toUpperCase() || file.mimetype,
-        fileSize: file.size,
-        UploadedBy: "ADMIN",
-        Type: documentType || "Evidence",
-        status: "Pending",
-        claimantEmail: caseData?.CustomersEmail || caseData?.claimant?.email || "",
-        respondentEmail: caseData?.oppositePartyEmail || "",
-        documents: [
-          {
-            fileUrl: uploadResult.secure_url,
-            fileName: file.originalname,
-            uploadedAt: new Date(),
-          },
-        ],
-      });
-    }
+    // Create a distinct document record so prior evidences/filings are never overwritten
+    const caseDocument = await adminDocument.create({
+      caseId: targetCaseId,
+      claimantName: targetClaimantName,
+      DocumentName: storedFile.fileName,
+      fileUrl: storedFile.fileUrl,
+      fileType: resolvedFileType,
+      fileSize: storedFile.fileSize,
+      UploadedBy: "ADMIN",
+      Type: documentType || "Evidence",
+      status: "Pending",
+      claimantEmail: caseData?.CustomersEmail || caseData?.claimant?.email || "",
+      respondentEmail: caseData?.oppositePartyEmail || "",
+      documents: [
+        {
+          fileUrl: storedFile.fileUrl,
+          fileName: storedFile.fileName,
+          uploadedAt: new Date(),
+        },
+      ],
+    });
 
     return res.status(201).json({
       success: true,
@@ -1022,46 +1016,15 @@ const downloadSubmittedDocument = async (req, res) => {
       return res.send(textContent);
     }
 
-    let downloadUrl = fileUrl;
-    if (downloadUrl.includes("/image/upload/") && !downloadUrl.includes("fl_attachment")) {
-      downloadUrl = downloadUrl.replace("/image/upload/", "/image/upload/fl_attachment/");
-    } else if (downloadUrl.includes("/raw/upload/") && !downloadUrl.includes("fl_attachment")) {
-      downloadUrl = downloadUrl.replace("/raw/upload/", "/raw/upload/fl_attachment/");
-    }
-
-    const client = downloadUrl.startsWith("http:") ? http : https;
-
-    client
-      .get(downloadUrl, (fileRes) => {
-        if (fileRes.statusCode >= 300 && fileRes.statusCode < 400 && fileRes.headers.location) {
-          const redirectClient = fileRes.headers.location.startsWith("http:") ? http : https;
-          redirectClient.get(fileRes.headers.location, (redirectRes) => {
-            const contentType = doc.fileType || redirectRes.headers["content-type"] || "application/octet-stream";
-            res.setHeader("Content-Type", contentType);
-            res.setHeader(
-              "Content-Disposition",
-              `attachment; filename="${encodeURIComponent(fileName)}"`
-            );
-            redirectRes.pipe(res);
-          });
-          return;
-        }
-
-        const contentType = doc.fileType || fileRes.headers["content-type"] || "application/octet-stream";
-        res.setHeader("Content-Type", contentType);
-        res.setHeader(
-          "Content-Disposition",
-          `attachment; filename="${encodeURIComponent(fileName)}"`
-        );
-        fileRes.pipe(res);
-      })
-      .on("error", (err) => {
-        console.error("Stream error in downloadSubmittedDocument:", err);
-        res.status(500).json({ message: "File streaming failed" });
-      });
+    await serveStoredFileDownload(fileUrl, res, {
+      fileName,
+      explicitType: doc.fileType,
+    });
   } catch (error) {
     console.error("Download submitted document error:", error);
-    res.status(500).json({ message: error.message || "Server error" });
+    if (!res.headersSent) {
+      res.status(500).json({ message: error.message || "Server error" });
+    }
   }
 };
 

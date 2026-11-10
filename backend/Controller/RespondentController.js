@@ -11,6 +11,7 @@ const path = require("path");
 const crypto = require("crypto");
 const transporter = require("../config/smtp");
 const mongoose = require("mongoose");
+const { storeUploadedFile } = require("../utils/fileStorage");
 
 const RespondentRegister = async (req, res) => {
   const { role, name, email, password } = req.body;
@@ -366,17 +367,11 @@ const uploadDocumentForRespondent = async (req, res) => {
       : req.body.email || req.body.respondentEmail || req.user?.email || "";
     const respondentId = respondent ? respondent._id : req.user?.id || null;
 
-    let secureUrl = "";
-    try {
-      const uploadResult = await cloudinary.uploader.upload(file.path, {
-        folder: "respondent_documents",
-        resource_type: "auto",
-      });
-      secureUrl = uploadResult.secure_url;
-    } catch (cErr) {
-      console.warn("Cloudinary upload note (using path fallback):", cErr.message);
-      secureUrl = `/uploads/${file.filename || path.basename(file.path)}`;
-    }
+    const storedFile = await storeUploadedFile(file, {
+      folder: "respondent_documents",
+      metadata: { caseId, respondentId },
+    });
+    const secureUrl = storedFile.fileUrl;
 
     // Save or update Document in DB
     let caseDocument = await uploadDocument.findOne({ caseId: caseId });
@@ -384,7 +379,7 @@ const uploadDocumentForRespondent = async (req, res) => {
     if (caseDocument) {
       caseDocument.documents.push({
         fileUrl: secureUrl,
-        fileName: file.originalname,
+        fileName: storedFile.fileName,
         uploadedAt: new Date(),
       });
       if (respondentEmail && !caseDocument.respondentEmail) {
@@ -397,16 +392,16 @@ const uploadDocumentForRespondent = async (req, res) => {
         respondentEmail: respondentEmail,
         caseId: caseId,
         fileUrl: secureUrl,
-        DocumentName: file.originalname,
-        fileType: file.mimetype,
-        fileSize: file.size,
+        DocumentName: storedFile.fileName,
+        fileType: storedFile.fileType,
+        fileSize: storedFile.fileSize,
         UploadedBy: "RESPONDENT",
         status: "Pending",
         uploadedAt: new Date(),
         documents: [
           {
             fileUrl: secureUrl,
-            fileName: file.originalname,
+            fileName: storedFile.fileName,
             uploadedAt: new Date(),
           },
         ],

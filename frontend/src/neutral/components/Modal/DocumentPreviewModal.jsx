@@ -1,19 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, FileText, ExternalLink, Download, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { resolveFileUrl, getDownloadFileUrl } from "../../../api/axiosConfig";
 
 const getCleanUrl = (url = "") => url.split("#")[0].split("?")[0].trim();
 
 const isImageFileUrl = (url = "") =>
   /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(getCleanUrl(url));
 
-const getDownloadUrl = (url = "") => {
-  if (!url) return "";
-  if (url.includes("/image/upload/") && !url.includes("fl_attachment")) {
-    return url.replace("/image/upload/", "/image/upload/fl_attachment/");
-  }
-  return url;
-};
+const getDownloadUrl = (url = "") => getDownloadFileUrl(url);
 
 /**
  * Full-viewport document preview modal rendered via React Portal so nested
@@ -44,16 +39,18 @@ export default function DocumentPreviewModal({
 
   if (!isOpen || !fileUrl) return null;
 
-  const cleanUrl = getCleanUrl(fileUrl);
-  const isImage = isImageFileUrl(fileUrl);
-  const isPdf = /\.pdf$/i.test(cleanUrl);
+  const resolvedFileUrl = resolveFileUrl(fileUrl);
+  const cleanUrl = getCleanUrl(resolvedFileUrl);
+  const isImage = isImageFileUrl(resolvedFileUrl);
+  const isPdf = /\.pdf$/i.test(cleanUrl) || /\.pdf(\?|#|$)/i.test(title || "");
+  const canShowPdfIframe = isPdf && !resolvedFileUrl.includes("res.cloudinary.com");
   const displaySrc = isImage
-    ? fileUrl
-    : isPdf
-    ? fileUrl.replace(/\.pdf(\?.*)?$/i, ".jpg$1")
+    ? resolvedFileUrl
+    : isPdf && !canShowPdfIframe
+    ? resolvedFileUrl.replace(/\.pdf(\?.*)?$/i, ".jpg$1")
     : null;
   const canShowImagePreview = Boolean(displaySrc) && !previewFailed;
-  const downloadUrl = getDownloadUrl(fileUrl);
+  const downloadUrl = getDownloadUrl(resolvedFileUrl);
 
   const handleZoomIn = () => {
     setZoomMode("custom");
@@ -213,7 +210,21 @@ export default function DocumentPreviewModal({
             boxSizing: "border-box",
           }}
         >
-          {canShowImagePreview ? (
+          {canShowPdfIframe ? (
+            <iframe
+              src={resolvedFileUrl}
+              title={title || "PDF Preview"}
+              style={{
+                width: "100%",
+                height: "100%",
+                minHeight: "65vh",
+                border: "none",
+                borderRadius: "6px",
+                backgroundColor: "#ffffff",
+                boxShadow: "0 2px 12px rgba(15, 23, 42, 0.1)",
+              }}
+            />
+          ) : canShowImagePreview ? (
             <img
               src={displaySrc}
               alt={title}
@@ -278,7 +289,7 @@ export default function DocumentPreviewModal({
           }}
         >
           <a
-            href={fileUrl}
+            href={resolvedFileUrl}
             target="_blank"
             rel="noopener noreferrer"
             style={{

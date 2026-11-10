@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { documentDetailsApi } from "../../api/AdminApi";
+import { getDownloadFileUrl } from "../../api/axiosConfig";
 import ModalComponent from "../../admin/component/Modal/ModalComponent";
 import UploadDocument from "../../admin/component/Modal/UploadDocument";
 import { toast } from "react-toastify";
@@ -54,24 +55,7 @@ export default function SubmittedDocuments() {
       const targetUrl =
         doc.fileUrl || (doc.documents && doc.documents[0]?.fileUrl);
       if (targetUrl) {
-        let downloadUrl = targetUrl;
-        if (
-          downloadUrl.includes("/image/upload/") &&
-          !downloadUrl.includes("fl_attachment")
-        ) {
-          downloadUrl = downloadUrl.replace(
-            "/image/upload/",
-            "/image/upload/fl_attachment/"
-          );
-        } else if (
-          downloadUrl.includes("/raw/upload/") &&
-          !downloadUrl.includes("fl_attachment")
-        ) {
-          downloadUrl = downloadUrl.replace(
-            "/raw/upload/",
-            "/raw/upload/fl_attachment/"
-          );
-        }
+        const downloadUrl = getDownloadFileUrl(targetUrl);
 
         try {
           const res = await fetch(downloadUrl);

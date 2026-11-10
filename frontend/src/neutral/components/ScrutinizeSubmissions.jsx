@@ -12,17 +12,11 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import axiosInstance from "../../api/axiosConfig";
+import axiosInstance, { resolveFileUrl, getDownloadFileUrl } from "../../api/axiosConfig";
 import { documentDetailsApi } from "../../api/AdminApi";
 import DocumentPreviewModal from "./Modal/DocumentPreviewModal";
 
-const getDownloadUrl = (rawUrl = "") => {
-  if (!rawUrl) return "";
-  if (rawUrl.includes("/image/upload/") && !rawUrl.includes("fl_attachment")) {
-    return rawUrl.replace("/image/upload/", "/image/upload/fl_attachment/");
-  }
-  return rawUrl;
-};
+const getDownloadUrl = getDownloadFileUrl;
 
 const formatRoleLabel = (uploadedBy = "") => {
   const norm = String(uploadedBy).trim().toLowerCase();
@@ -92,7 +86,7 @@ export default function ScrutinizeSubmissions() {
             caseTitle,
             documentRecordId: ev.documentRecordId || null,
             documentName: ev.name || "Submitted Evidence",
-            fileUrl: ev.fileUrl || "",
+            fileUrl: resolveFileUrl(ev.fileUrl || ""),
             type: ev.type || "Evidence",
             submittedBy,
             submittedByColor: getPartyColor(submittedBy),

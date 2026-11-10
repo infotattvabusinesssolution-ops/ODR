@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Download, Eye, FileText, Image as ImageIcon, Loader2 } from "lucide-react";
 import { toast } from "react-toastify";
+import { resolveFileUrl, getDownloadFileUrl } from "../../../api/axiosConfig";
 
 /**
  * Reusable section displaying all evidences and documents linked to a case.
@@ -22,7 +23,7 @@ export default function CaseEvidencesSection({
         {
           _id: `${caseData._id || "case"}-primary`,
           name: "Primary Case Document",
-          fileUrl: caseData.file.trim(),
+          fileUrl: resolveFileUrl(caseData.file.trim()),
           type: "Case Filing",
           status: caseData.status || "Submitted",
           uploadedBy: "Claimant",
@@ -38,13 +39,7 @@ export default function CaseEvidencesSection({
     return /\.(png|jpe?g|webp|gif)(\?|$|\s)/.test(target);
   };
 
-  const getDownloadUrl = (rawUrl) => {
-    if (!rawUrl) return "";
-    if (rawUrl.includes("/image/upload/") && !rawUrl.includes("fl_attachment")) {
-      return rawUrl.replace("/image/upload/", "/image/upload/fl_attachment/");
-    }
-    return rawUrl;
-  };
+  const getDownloadUrl = (rawUrl) => getDownloadFileUrl(rawUrl);
 
   const handleDownloadEvidence = async (ev) => {
     if (!ev?.fileUrl) {
@@ -149,7 +144,7 @@ export default function CaseEvidencesSection({
         };
         const thumbImg = (
           <img
-            src={ev.fileUrl}
+            src={resolveFileUrl(ev.fileUrl)}
             alt={ev.name}
             style={{
               width: "100%",
@@ -252,7 +247,7 @@ export default function CaseEvidencesSection({
                   </button>
                 ) : (
                   <a
-                    href={ev.fileUrl}
+                    href={resolveFileUrl(ev.fileUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={viewBtnStyle}
@@ -308,7 +303,7 @@ export default function CaseEvidencesSection({
                 </button>
               ) : (
                 <a
-                  href={ev.fileUrl}
+                  href={resolveFileUrl(ev.fileUrl)}
                   target="_blank"
                   rel="noopener noreferrer"
                   title="Click to open full size in new tab"
