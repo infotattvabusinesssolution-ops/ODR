@@ -16,6 +16,7 @@ const crypto = require("crypto");
 const transporter = require("../../config/smtp");
 const {
   storeUploadedFile,
+  resolveAbsoluteFileUrl,
   createCaseFilingDocument,
 } = require("../../utils/fileStorage");
 
@@ -319,7 +320,7 @@ const ClaimantaddNewCase = async (req, res) => {
       success: true,
       message: "New case filed successfully",
       caseId,
-      fileUrl: uploadResult.secure_url,
+      fileUrl: storedFile ? storedFile.fileUrl : "",
     });
   } catch (error) {
     console.error("❌ Error in addNewCase:", error);
@@ -473,7 +474,7 @@ const uploadDocumentForClaimant = async (req, res) => {
             caseName: caseRecord.DisputeName,
             documentName: file.originalname,
             uploadedBy: `Claimant (${claimantName})`,
-            fileUrl: uploadResult.secure_url,
+            fileUrl: storedFile.fileUrl,
             sentAt: new Date(),
           },
         });
@@ -496,7 +497,7 @@ const uploadDocumentForClaimant = async (req, res) => {
                   <tr><td style="padding: 10px; font-weight: bold;">Uploaded At:</td><td style="padding: 10px;">${new Date().toLocaleString("en-IN")}</td></tr>
                 </table>
                 <div style="margin-top: 24px; text-align: center;">
-                  <a href="${uploadResult.secure_url}" target="_blank" style="display: inline-block; padding: 12px 24px; background: #2563eb; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">View Document</a>
+                  <a href="${resolveAbsoluteFileUrl(storedFile.fileUrl)}" target="_blank" style="display: inline-block; padding: 12px 24px; background: #2563eb; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">View Document</a>
                 </div>
                 <p style="margin-top: 24px; font-size: 13px; color: #64748b;">Regards,<br/><strong>Utkal ODR Secretariat</strong></p>
               </div>

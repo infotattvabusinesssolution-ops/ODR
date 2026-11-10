@@ -2,6 +2,7 @@ const NeutralAward = require("../models/neutralAward");
 const Case = require("../models/Case");
 const cloudinary = require("../config/cloudinary");
 const fs = require("fs");
+const { storeUploadedFile } = require("../utils/fileStorage");
 
 // Helper to format file size
 const formatBytes = (bytes, decimals = 2) => {
@@ -36,18 +37,11 @@ const uploadAwardDoc = async (req, res) => {
       console.log(`Notice: Case ${caseId} not in DB or unassigned, proceeding as demo/test case.`);
     }
 
-    // Upload to Cloudinary with fallback
-    let fileUrl = "";
-    try {
-      const uploadResult = await cloudinary.uploader.upload(file.path, {
-        folder: "neutral_awards_orders",
-        resource_type: "auto",
-      });
-      fileUrl = uploadResult.secure_url;
-    } catch (cErr) {
-      console.warn("Cloudinary upload fallback:", cErr.message);
-      fileUrl = `/uploads/${file.filename || file.originalname}`;
-    }
+    const storedFile = await storeUploadedFile(file, {
+      folder: "neutral_awards_orders",
+      metadata: { caseId, neutralId },
+    });
+    const fileUrl = storedFile.fileUrl;
 
     const newAward = await NeutralAward.create({
       caseId,
