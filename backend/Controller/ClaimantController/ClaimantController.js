@@ -289,6 +289,7 @@ const ClaimantaddNewCase = async (req, res) => {
     });
 
     await newCase.save();
+    await newCase.populate("claimant respondent neutral", "name email");
 
     if (storedFile) {
       await createCaseFilingDocument(ClaimantDocument, {

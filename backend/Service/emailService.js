@@ -148,8 +148,8 @@ async function sendDisputeEmails(caseData) {
 /**
  * Step 2: Case Registration from Admin (`+ New Case`) or Claimant (`File Case`).
  * - Claimant/Guest always receives registration confirmation.
- * - Claimant-filed cases alert Admin.
- * - Admin-filed cases send a formal Notice of Dispute directly to Respondent.
+ * - Respondent receives a formal Notice of Dispute when oppositePartyEmail is provided.
+ * - Claimant-filed cases also alert Admin.
  */
 async function sendCaseRegistrationEmails(caseData, { isAdminFiled = false, fileUrl = "" } = {}) {
   const contacts = resolveCaseContacts(caseData);
@@ -213,7 +213,7 @@ async function sendCaseRegistrationEmails(caseData, { isAdminFiled = false, file
     );
   }
 
-  if (isAdminFiled && isValidEmail(contacts.respondentEmail)) {
+  if (isValidEmail(contacts.respondentEmail)) {
     tasks.push(
       sendTrackedMail({
         to: contacts.respondentEmail,
@@ -222,6 +222,8 @@ async function sendCaseRegistrationEmails(caseData, { isAdminFiled = false, file
         html: disputeNoticeRespondentTemplate(basePayload),
         logData: {
           caseId: caseData._id,
+          claimant: caseData.claimant?._id || caseData.claimant || undefined,
+          claimantEmail: contacts.claimantEmail || undefined,
           respondentEmail: contacts.respondentEmail,
           CaseMessage: {
             title: "Notice of Dispute Dispatched",
