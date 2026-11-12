@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const twilio = require("twilio");
 const { adminAuth } = require("../config/firebase");
 const User = require("../models/users");
 const Case = require("../models/Case");
@@ -222,8 +223,83 @@ const firebaseLogin = async (req, res) => {
 };
 
 /**
- * Server-side OTP fallback when carrier SMS is unavailable (e.g. Firebase Spark / DLT block).
- * Sends a 6-digit OTP to the email registered with the user's phone number via Hostinger SMTP.
+ * Attempt real carrier SMS OTP if an SMS gateway (Twilio SMS, Fast2SMS, or MSG91) is configured.
+ * Returns { sent: true, provider } on success, or { sent: false, reason } if unconfigured/failed.
+ */
+async function trySendSmsOtp(clean10, otp) {
+  const phoneE164 = `+91${clean10}`;
+
+  if (process.env.TWILIO_SID && process.env.TWILIO_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
+    try {
+      const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
+      await client.messages.create({
+        from: process.env.TWILIO_PHONE_NUMBER.trim(),
+        to: phoneE164,
+        body: `Your Utkal ODR login OTP is ${otp}. Valid for 10 minutes.`,
+      });
+      return { sent: true, provider: "twilio" };
+    } catch (err) {
+      console.warn("Twilio SMS OTP failed:", err.message);
+      return { sent: false, reason: err.message };
+    }
+  }
+
+  if (process.env.FAST2SMS_API_KEY) {
+    try {
+      const res = await fetch("https://www.fast2sms.com/dev/bulkV2", {
+        method: "POST",
+        headers: {
+          authorization: process.env.FAST2SMS_API_KEY.trim(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          route: "otp",
+          variables_values: otp,
+          numbers: clean10,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data?.return) {
+        return { sent: true, provider: "fast2sms" };
+      }
+      return { sent: false, reason: data?.message || "Fast2SMS rejected request" };
+    } catch (err) {
+      console.warn("Fast2SMS OTP failed:", err.message);
+      return { sent: false, reason: err.message };
+    }
+  }
+
+  if (process.env.MSG91_AUTH_KEY && process.env.MSG91_TEMPLATE_ID) {
+    try {
+      const res = await fetch("https://control.msg91.com/api/v5/otp", {
+        method: "POST",
+        headers: {
+          authkey: process.env.MSG91_AUTH_KEY.trim(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          template_id: process.env.MSG91_TEMPLATE_ID.trim(),
+          mobile: `91${clean10}`,
+          otp,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data?.type === "success") {
+        return { sent: true, provider: "msg91" };
+      }
+      return { sent: false, reason: data?.message || "MSG91 rejected request" };
+    } catch (err) {
+      console.warn("MSG91 OTP failed:", err.message);
+      return { sent: false, reason: err.message };
+    }
+  }
+
+  return { sent: false, reason: "NO_SERVER_SMS_GATEWAY" };
+}
+
+/**
+ * Server-side OTP dispatch: uses configured SMS gateway (Twilio SMS / Fast2SMS / MSG91) for any
+ * dynamic phone number, or falls back to Hostinger SMTP email for registered accounts.
  */
 const sendPhoneOtp = async (req, res) => {
   try {
@@ -245,16 +321,18 @@ const sendPhoneOtp = async (req, res) => {
       return res.status(403).json({ success: false, message: "Admin accounts must sign in using Email & Password" });
     }
 
-    if (!email) {
+    const otp = String(crypto.randomInt(100000, 1000000));
+    const smsAttempt = await trySendSmsOtp(clean10, otp);
+
+    if (!smsAttempt.sent && !email) {
       return res.status(404).json({
         success: false,
         code: "NO_REGISTERED_EMAIL",
         message:
-          `Real SMS OTP is blocked on the server (Firebase requires Blaze billing / DLT SMS setup), and no registered email was found for ${phoneKey}. Please log in with Email & Password or register with both email and phone.`,
+          `Real SMS OTP is not active on the server (Firebase requires Blaze billing or a server SMS gateway like TWILIO_PHONE_NUMBER / FAST2SMS_API_KEY / MSG91_AUTH_KEY), and no registered email was found for ${phoneKey}.`,
       });
     }
 
-    const otp = String(crypto.randomInt(100000, 1000000));
     const otpHash = hashPhoneOtp(phoneKey, otp);
     const expiresAt = new Date(Date.now() + OTP_TTL_MS);
 
@@ -264,7 +342,7 @@ const sendPhoneOtp = async (req, res) => {
         $set: {
           phoneKey,
           role: pickValidRole(role) || "any",
-          email,
+          email: email || "",
           name: name || phoneKey,
           otpHash,
           attempts: 0,
@@ -273,6 +351,15 @@ const sendPhoneOtp = async (req, res) => {
       },
       { upsert: true, new: true }
     );
+
+    if (smsAttempt.sent) {
+      return res.status(200).json({
+        success: true,
+        channel: "sms",
+        provider: smsAttempt.provider,
+        message: `SMS OTP sent to ${phoneKey}`,
+      });
+    }
 
     const fromAddress =
       process.env.SMTP_FROM ||
@@ -311,7 +398,7 @@ const sendPhoneOtp = async (req, res) => {
     console.error("Send Phone OTP Error:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to send OTP via registered email. Please try again or use Email login.",
+      message: "Failed to send OTP. Please try again or use Email login.",
     });
   }
 };

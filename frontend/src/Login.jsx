@@ -241,7 +241,7 @@ export default function Login({ getRole }) {
     }
   }, [showPhoneLogin, isOtpSent, recaptchaResetKey, setupRecaptcha]);
 
-  const sendEmailOtpFallback = async (cleanNumber) => {
+  const sendServerOtp = async (cleanNumber, firebaseErrorMsg = "") => {
     try {
       const response = await axiosInstance.post("/api/auth/send-phone-otp", {
         phone: cleanNumber,
@@ -249,22 +249,20 @@ export default function Login({ getRole }) {
       });
       const result = response.data;
       if (result.success) {
-        setOtpChannel("email");
+        setOtpChannel(result.channel === "sms" ? "server-sms" : "email");
         setMaskedEmail(result.maskedEmail || "");
         setIsOtpSent(true);
         setOtp("");
         setError("");
-        toast.success(result.message || `OTP sent to ${result.maskedEmail || "your registered email"}`);
+        toast.success(result.message || `OTP sent to ${result.maskedEmail || `+91${cleanNumber}`}`);
         return { ok: true };
       }
-      reportError(result.message || "Failed to send OTP via registered email.");
+      reportError(result.message || firebaseErrorMsg || "Failed to send OTP.");
       return { ok: false };
     } catch (fallbackErr) {
-      const msg =
-        fallbackErr.response?.data?.message ||
-        fallbackErr.message ||
-        "Failed to send OTP. Please try email login.";
-      reportError(msg);
+      const serverMsg = fallbackErr.response?.data?.message || fallbackErr.message || "Failed to send OTP.";
+      const combined = firebaseErrorMsg ? `${firebaseErrorMsg} — ${serverMsg}` : serverMsg;
+      reportError(combined);
       return { ok: false };
     }
   };
@@ -272,7 +270,7 @@ export default function Login({ getRole }) {
   const loginWithPhone = async (e) => {
     if (e) e.preventDefault();
     if (selectedRole === "Select Role") return reportError("Please select a role");
-    if (selectedRole === "admin") return reportError("Admins cannot login via Firebase");
+    if (selectedRole === "admin") return reportError("Admins cannot login via Phone OTP");
     if (!phoneForLogin) return reportError("Please enter your phone number");
 
     const digitsOnly = phoneForLogin.replace(/\D/g, "");
@@ -303,28 +301,15 @@ export default function Login({ getRole }) {
       clearRecaptcha();
       setRecaptchaResetKey((k) => k + 1);
 
-      const fallbackEligibleCodes = new Set([
-        "auth/billing-not-enabled",
-        "auth/quota-exceeded",
-        "auth/too-many-requests",
-        "auth/invalid-app-credential",
-        "auth/captcha-check-failed",
-        "auth/operation-not-allowed",
-      ]);
-
-      if (
-        fallbackEligibleCodes.has(err.code) ||
-        (err.message && err.message.includes("Hostname match not found"))
-      ) {
-        await sendEmailOtpFallback(cleanNumber);
-      } else if (err.code === "auth/unauthorized-domain") {
+      if (err.code === "auth/unauthorized-domain") {
         reportError(
           `Domain "${window.location.hostname}" is not authorized in Firebase Authentication. Add it under Firebase Console -> Authentication -> Settings -> Authorized domains.`
         );
       } else if (err.code === "auth/invalid-phone-number") {
         reportError("Invalid phone number format. Please enter a valid 10-digit number.");
       } else {
-        await sendEmailOtpFallback(cleanNumber);
+        const reason = err.code ? `Firebase SMS error (${err.code})` : (err.message || "Firebase SMS unavailable");
+        await sendServerOtp(cleanNumber, reason);
       }
     } finally {
       setLoading(false);
@@ -340,7 +325,7 @@ export default function Login({ getRole }) {
     setLoading(true);
     setError("");
     try {
-      await sendEmailOtpFallback(cleanNumber);
+      await sendServerOtp(cleanNumber);
     } finally {
       setLoading(false);
     }
@@ -356,7 +341,7 @@ export default function Login({ getRole }) {
     setError("");
 
     try {
-      if (otpChannel === "email") {
+      if (otpChannel === "email" || otpChannel === "server-sms") {
         const digitsOnly = phoneForLogin.replace(/\D/g, "");
         const cleanNumber = digitsOnly.startsWith("91") && digitsOnly.length > 10 ? digitsOnly.slice(-10) : digitsOnly;
         const response = await axiosInstance.post("/api/auth/verify-phone-otp", {
@@ -590,14 +575,11 @@ export default function Login({ getRole }) {
                               className="input-field"
                               type="tel"
                               maxLength={10}
-                              placeholder="10-digit Phone Number"
+                              placeholder="Enter any 10-digit Phone Number"
                               value={phoneForLogin}
                               onChange={(e) => setPhoneForLogin(e.target.value)}
                               disabled={loading}
                             />
-                          </div>
-                          <div style={{ fontSize: "12px", color: "#64748b", margin: "-4px 0 4px", textAlign: "center", backgroundColor: "#f1f5f9", padding: "6px", borderRadius: "6px" }}>
-                            Test Login: <strong>9999999999</strong> (OTP: <strong>000000</strong>) — or uses registered email OTP if SMS is unavailable
                           </div>
                           <div id="recaptcha-container" style={{ display: "flex", justifyContent: "center", margin: "4px 0", minHeight: "78px" }}></div>
                           <button type="button" onClick={loginWithPhone} className="btn-success" disabled={loading}>
