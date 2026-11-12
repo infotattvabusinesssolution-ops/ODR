@@ -23,8 +23,6 @@ export default function Login({ getRole }) {
   const [phoneForLogin, setPhoneForLogin] = useState("");
   const [otp, setOtp] = useState("");
   const [isOtpSent, setIsOtpSent] = useState(false);
-  const [otpChannel, setOtpChannel] = useState("firebase");
-  const [maskedEmail, setMaskedEmail] = useState("");
   const [isRecaptchaVerified, setIsRecaptchaVerified] = useState(false);
   const [recaptchaResetKey, setRecaptchaResetKey] = useState(0);
 
@@ -33,20 +31,6 @@ export default function Login({ getRole }) {
     if (msg) {
       toast.error(msg);
     }
-  };
-
-  const navigateByRole = (targetRole) => {
-    navigate(
-      targetRole === "admin"
-        ? "/admin"
-        : targetRole === "claimant"
-          ? "/claimant"
-          : targetRole === "respondent"
-            ? "/respondent"
-            : targetRole === "neutral"
-              ? "/neutral"
-              : "/"
-    );
   };
 
   const roles = [
@@ -241,36 +225,10 @@ export default function Login({ getRole }) {
     }
   }, [showPhoneLogin, isOtpSent, recaptchaResetKey, setupRecaptcha]);
 
-  const sendServerOtp = async (cleanNumber, firebaseErrorMsg = "") => {
-    try {
-      const response = await axiosInstance.post("/api/auth/send-phone-otp", {
-        phone: cleanNumber,
-        role: selectedRole,
-      });
-      const result = response.data;
-      if (result.success) {
-        setOtpChannel(result.channel === "sms" ? "server-sms" : "email");
-        setMaskedEmail(result.maskedEmail || "");
-        setIsOtpSent(true);
-        setOtp("");
-        setError("");
-        toast.success(result.message || `OTP sent to ${result.maskedEmail || `+91${cleanNumber}`}`);
-        return { ok: true };
-      }
-      reportError(result.message || firebaseErrorMsg || "Failed to send OTP.");
-      return { ok: false };
-    } catch (fallbackErr) {
-      const serverMsg = fallbackErr.response?.data?.message || fallbackErr.message || "Failed to send OTP.";
-      const combined = firebaseErrorMsg ? `${firebaseErrorMsg} — ${serverMsg}` : serverMsg;
-      reportError(combined);
-      return { ok: false };
-    }
-  };
-
   const loginWithPhone = async (e) => {
     if (e) e.preventDefault();
     if (selectedRole === "Select Role") return reportError("Please select a role");
-    if (selectedRole === "admin") return reportError("Admins cannot login via Phone OTP");
+    if (selectedRole === "admin") return reportError("Admins cannot login via Firebase");
     if (!phoneForLogin) return reportError("Please enter your phone number");
 
     const digitsOnly = phoneForLogin.replace(/\D/g, "");
@@ -286,14 +244,12 @@ export default function Login({ getRole }) {
 
     const fullPhoneNumber = `+91${cleanNumber}`;
     setError("");
-    setLoading(true);
 
     try {
       const verifier = setupRecaptcha();
+      setLoading(true);
       const confirmationResult = await signInWithPhoneNumber(auth, fullPhoneNumber, verifier);
       window.confirmationResult = confirmationResult;
-      setOtpChannel("firebase");
-      setMaskedEmail("");
       setIsOtpSent(true);
       toast.success(`OTP sent to ${fullPhoneNumber}`);
     } catch (err) {
@@ -305,27 +261,27 @@ export default function Login({ getRole }) {
         reportError(
           `Domain "${window.location.hostname}" is not authorized in Firebase Authentication. Add it under Firebase Console -> Authentication -> Settings -> Authorized domains.`
         );
+      } else if (err.code === "auth/billing-not-enabled") {
+        reportError(
+          "Firebase real SMS OTP requires Blaze billing in Firebase Console (Spark plan only supports configured test phone numbers like 9999999999 / OTP 000000)."
+        );
+      } else if (err.code === "auth/invalid-app-credential") {
+        reportError(
+          `Firebase app verification failed for "${window.location.hostname}". Ensure the domain is in Firebase Authorized Domains and Firebase Phone provider is enabled (or use test number 9999999999 / OTP 000000).`
+        );
+      } else if (err.code === "auth/captcha-check-failed" || (err.message && err.message.includes("Hostname match not found"))) {
+        reportError(
+          `reCAPTCHA verification failed for hostname "${window.location.hostname}". Add this domain to Firebase Console -> Authentication -> Settings -> Authorized Domains.`
+        );
       } else if (err.code === "auth/invalid-phone-number") {
         reportError("Invalid phone number format. Please enter a valid 10-digit number.");
+      } else if (err.code === "auth/too-many-requests") {
+        reportError("Too many OTP requests from this device. Please wait a few minutes or use email login.");
+      } else if (err.code === "auth/quota-exceeded") {
+        reportError("Firebase SMS quota exceeded. Please check Firebase SMS quota or use a configured test phone number.");
       } else {
-        const reason = err.code ? `Firebase SMS error (${err.code})` : (err.message || "Firebase SMS unavailable");
-        await sendServerOtp(cleanNumber, reason);
+        reportError(err.message || "Failed to send OTP. Please try again.");
       }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFallbackToEmailOtp = async () => {
-    const digitsOnly = phoneForLogin.replace(/\D/g, "");
-    const cleanNumber = digitsOnly.startsWith("91") && digitsOnly.length > 10 ? digitsOnly.slice(-10) : digitsOnly;
-    if (cleanNumber.length !== 10) {
-      return reportError("Please enter a valid 10-digit mobile number");
-    }
-    setLoading(true);
-    setError("");
-    try {
-      await sendServerOtp(cleanNumber);
     } finally {
       setLoading(false);
     }
@@ -341,26 +297,6 @@ export default function Login({ getRole }) {
     setError("");
 
     try {
-      if (otpChannel === "email" || otpChannel === "server-sms") {
-        const digitsOnly = phoneForLogin.replace(/\D/g, "");
-        const cleanNumber = digitsOnly.startsWith("91") && digitsOnly.length > 10 ? digitsOnly.slice(-10) : digitsOnly;
-        const response = await axiosInstance.post("/api/auth/verify-phone-otp", {
-          phone: cleanNumber,
-          otp: otp.trim(),
-          role: selectedRole,
-        });
-        const result = response.data;
-        if (result.success) {
-          login(result.user, result.token);
-          getRole(result.role);
-          toast.success("Phone OTP login successful!");
-          navigateByRole(result.role);
-        } else {
-          reportError(result.message || "Invalid OTP");
-        }
-        return;
-      }
-
       if (!window.confirmationResult) {
         throw new Error("Session expired. Please request a new OTP.");
       }
@@ -374,7 +310,7 @@ export default function Login({ getRole }) {
       } else if (err.code === "auth/code-expired") {
         reportError("OTP has expired. Please request a new one.");
       } else {
-        reportError(err.response?.data?.message || err.message || "Invalid OTP");
+        reportError(err.message || "Invalid OTP");
       }
     } finally {
       setLoading(false);
@@ -384,8 +320,6 @@ export default function Login({ getRole }) {
   const handleCancelPhoneLogin = () => {
     setShowPhoneLogin(false);
     setIsOtpSent(false);
-    setOtpChannel("firebase");
-    setMaskedEmail("");
     setPhoneForLogin("");
     setOtp("");
     clearRecaptcha();
@@ -394,8 +328,6 @@ export default function Login({ getRole }) {
 
   const handleResendOtp = () => {
     setIsOtpSent(false);
-    setOtpChannel("firebase");
-    setMaskedEmail("");
     setOtp("");
     clearRecaptcha();
     setError("");
@@ -488,64 +420,58 @@ export default function Login({ getRole }) {
                 </div>
               </div>
 
-              {!showPhoneLogin && (
-                <>
-                  {/* Email Input */}
-                  <div className="input-wrapper">
-                    <Mail size={17} className="input-icon" />
-                    <input
-                      className="input-field"
-                      type="email"
-                      placeholder="Username or Email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={isDisabled}
-                    />
-                  </div>
+              {/* Email Input */}
+              <div className="input-wrapper">
+                <Mail size={17} className="input-icon" />
+                <input
+                  className="input-field"
+                  type="email"
+                  placeholder="Username or Email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isDisabled}
+                />
+              </div>
 
-                  {/* Password Input */}
-                  <div className="input-wrapper">
-                    <Lock size={17} className="input-icon" />
-                    <input
-                      className="input-field"
-                      type="password"
-                      placeholder="Password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      disabled={isDisabled}
-                    />
-                  </div>
+              {/* Password Input */}
+              <div className="input-wrapper">
+                <Lock size={17} className="input-icon" />
+                <input
+                  className="input-field"
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isDisabled}
+                />
+              </div>
 
-                  {/* Remember me & Forgot Password */}
-                  <div className="form-options">
-                    <label className="checkbox-label">
-                      <input type="checkbox" className="checkbox-input" />
-                      Remember me
-                    </label>
-                    <a href="#" className="forgot-link">Forgot password?</a>
-                  </div>
+              {/* Remember me & Forgot Password */}
+              <div className="form-options">
+                <label className="checkbox-label">
+                  <input type="checkbox" className="checkbox-input" />
+                  Remember me
+                </label>
+                <a href="#" className="forgot-link">Forgot password?</a>
+              </div>
 
-                  {/* Sign In / Login Button */}
-                  <button
-                    type="submit"
-                    className="btn-primary"
-                    disabled={isDisabled || loading}
-                  >
-                    {loading ? "Logging in..." : "Login"}
-                    {!loading && <span style={{ fontSize: '16px' }}>→</span>}
-                  </button>
+              {/* Sign In / Login Button */}
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={isDisabled || loading}
+              >
+                {loading ? "Logging in..." : "Login"}
+                {!loading && <span style={{ fontSize: '16px' }}>→</span>}
+              </button>
 
-                  {selectedRole !== "admin" && (
-                    <div className="divider">
-                      <div className="divider-line"></div>
-                      <div className="divider-text">OR</div>
-                      <div className="divider-line"></div>
-                    </div>
-                  )}
-                </>
-              )}
+              <div className="divider">
+                <div className="divider-line"></div>
+                <div className="divider-text">OR</div>
+                <div className="divider-line"></div>
+              </div>
 
-              {/* Firebase / Phone Login Section */}
+              {/* Firebase Login Section */}
               {selectedRole !== "admin" && (
                 <div className="sso-buttons">
                   {!showPhoneLogin ? (
@@ -575,24 +501,19 @@ export default function Login({ getRole }) {
                               className="input-field"
                               type="tel"
                               maxLength={10}
-                              placeholder="Enter any 10-digit Phone Number"
+                              placeholder="10-digit Phone Number"
                               value={phoneForLogin}
                               onChange={(e) => setPhoneForLogin(e.target.value)}
                               disabled={loading}
                             />
                           </div>
-                          <div id="recaptcha-container" style={{ display: "flex", justifyContent: "center", margin: "4px 0", minHeight: "78px" }}></div>
+                          <div style={{ fontSize: "12px", color: "#64748b", margin: "-4px 0 6px", textAlign: "center", backgroundColor: "#f1f5f9", padding: "6px", borderRadius: "6px" }}>
+                            Firebase Test Login: <strong>9999999999</strong> (OTP: <strong>000000</strong>)
+                          </div>
+                          <div id="recaptcha-container" style={{ display: "flex", justifyContent: "center", margin: "6px 0", minHeight: "78px" }}></div>
+                          {error && <div className="error-banner" style={{ marginBottom: 0 }}>{error}</div>}
                           <button type="button" onClick={loginWithPhone} className="btn-success" disabled={loading}>
                             {loading ? "Sending OTP..." : "Send OTP"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleFallbackToEmailOtp}
-                            className="btn-outline"
-                            disabled={loading}
-                            style={{ fontSize: "13px", padding: "0.6rem 0.75rem" }}
-                          >
-                            Send OTP to Registered Email (If SMS Fails)
                           </button>
                           <div style={{ display: "flex", justifyContent: "center" }}>
                             <button
@@ -600,28 +521,20 @@ export default function Login({ getRole }) {
                               onClick={handleCancelPhoneLogin}
                               style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: "13px", padding: "4px" }}
                             >
-                              ← Back to Email Login
+                              ← Back to Login Options
                             </button>
                           </div>
                         </>
                       ) : (
                         <>
-                          <div style={{ fontSize: "13px", color: "#475569", textAlign: "center", lineHeight: 1.5 }}>
-                            {otpChannel === "email" ? (
-                              <>
-                                Enter the 6-digit OTP sent to registered email <strong>{maskedEmail}</strong> (for <strong>+91 {phoneForLogin}</strong>)
-                              </>
-                            ) : (
-                              <>
-                                Enter the code sent to <strong>+91 {phoneForLogin}</strong>
-                              </>
-                            )}
+                          <div style={{ fontSize: "13px", color: "#475569", textAlign: "center" }}>
+                            Enter the code sent to <strong>+91 {phoneForLogin}</strong>
                           </div>
                           <div className="otp-input-group">
                             <input
                               className="input-field"
                               type="text"
-                              placeholder="Enter 6-digit OTP"
+                              placeholder="Enter OTP"
                               value={otp}
                               onChange={(e) => setOtp(e.target.value)}
                               disabled={loading}
@@ -630,17 +543,6 @@ export default function Login({ getRole }) {
                           <button type="button" onClick={verifyOTP} className="btn-success" disabled={loading}>
                             {loading ? "Verifying..." : "Verify OTP & Login"}
                           </button>
-                          {otpChannel === "firebase" && (
-                            <button
-                              type="button"
-                              onClick={handleFallbackToEmailOtp}
-                              className="btn-outline"
-                              disabled={loading}
-                              style={{ fontSize: "13px", padding: "0.55rem 0.75rem" }}
-                            >
-                              Didn&apos;t receive SMS? Send OTP to Registered Email
-                            </button>
-                          )}
                           <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
                             <button
                               type="button"
