@@ -1,15 +1,6 @@
-const crypto = require("crypto");
-const twilio = require("twilio");
 const { adminAuth } = require("../config/firebase");
 const User = require("../models/users");
-const Case = require("../models/Case");
-const PhoneOtp = require("../models/phoneOtp");
-const transporter = require("../config/smtp");
 const jwt = require("jsonwebtoken");
-
-const ALLOWED_FIREBASE_ROLES = ["claimant", "respondent", "neutral"];
-const OTP_TTL_MS = 10 * 60 * 1000;
-const OTP_MAX_ATTEMPTS = 5;
 
 function buildPhoneCandidates(phone) {
   if (!phone || typeof phone !== "string") return [];
@@ -30,137 +21,6 @@ function buildPhoneCandidates(phone) {
   );
 }
 
-function normalizePhone10(phone) {
-  if (!phone || typeof phone !== "string") return "";
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length < 10) return "";
-  return digits.slice(-10);
-}
-
-function isUsableEmail(email) {
-  if (typeof email !== "string") return false;
-  const trimmed = email.trim().toLowerCase();
-  return trimmed.includes("@") && !trimmed.endsWith("@otp.odr");
-}
-
-function maskEmail(email) {
-  const trimmed = (email || "").trim();
-  const atIdx = trimmed.indexOf("@");
-  if (atIdx <= 0) return trimmed;
-  const local = trimmed.slice(0, atIdx);
-  const domain = trimmed.slice(atIdx);
-  if (local.length <= 2) return `${local[0]}***${domain}`;
-  return `${local.slice(0, 2)}***${local.slice(-1)}${domain}`;
-}
-
-function hashPhoneOtp(phoneKey, otp) {
-  return crypto
-    .createHmac("sha256", process.env.JWT_SECRET || "default_secret")
-    .update(`${phoneKey}:${otp}`)
-    .digest("hex");
-}
-
-function pickValidRole(role) {
-  return role && ALLOWED_FIREBASE_ROLES.includes(role) ? role : null;
-}
-
-/**
- * Resolve a non-admin user and contact email associated with a phone number.
- */
-async function resolvePhoneAccount(phoneCandidates, requestedRole) {
-  const validRole = pickValidRole(requestedRole);
-  const matchingUsers = await User.find({ phone: { $in: phoneCandidates } });
-  const nonAdminUsers = matchingUsers.filter((u) => u.role !== "admin");
-  const onlyAdmin = matchingUsers.length > 0 && nonAdminUsers.length === 0;
-  if (onlyAdmin) {
-    return { onlyAdmin: true, user: null, email: "", name: "" };
-  }
-
-  let selectedUser = null;
-  if (validRole) {
-    selectedUser =
-      nonAdminUsers.find((u) => u.role === validRole && isUsableEmail(u.email)) ||
-      nonAdminUsers.find((u) => u.role === validRole) ||
-      null;
-  }
-  if (!selectedUser) {
-    selectedUser = nonAdminUsers.find((u) => isUsableEmail(u.email)) || nonAdminUsers[0] || null;
-  }
-
-  let email = selectedUser && isUsableEmail(selectedUser.email) ? selectedUser.email.trim() : "";
-  let name = selectedUser?.name || "";
-
-  if (!email) {
-    const matchedCase = await Case.findOne({
-      $or: [
-        { CustomersMobileNumber: { $in: phoneCandidates } },
-        { oppositeMobile: { $in: phoneCandidates } },
-      ],
-    })
-      .sort({ createdAt: -1 })
-      .lean();
-
-    if (matchedCase) {
-      const claimantMatch = phoneCandidates.includes((matchedCase.CustomersMobileNumber || "").trim());
-      if (claimantMatch && isUsableEmail(matchedCase.CustomersEmail)) {
-        email = matchedCase.CustomersEmail.trim();
-        name = name || matchedCase.CustomersName || "";
-      } else if (isUsableEmail(matchedCase.oppositePartyEmail)) {
-        email = matchedCase.oppositePartyEmail.trim();
-        name = name || matchedCase.oppositePartyName || "";
-      }
-    }
-  }
-
-  return { onlyAdmin: false, user: selectedUser, email, name };
-}
-
-/**
- * Persist role/name updates, issue JWT + auth cookie, and return standard login JSON.
- */
-async function issueSessionResponse(req, res, user, role, message) {
-  const validRole = pickValidRole(role);
-  let changed = false;
-
-  if (validRole && user.role !== validRole && user.role !== "admin") {
-    user.role = validRole;
-    changed = true;
-  }
-  if (user.role === "admin") {
-    return res.status(403).json({ success: false, message: "Admin cannot login via Firebase or Phone OTP" });
-  }
-
-  const token = jwt.sign(
-    { id: user._id, role: user.role, email: user.email },
-    process.env.JWT_SECRET || "default_secret",
-    { expiresIn: "10d" }
-  );
-
-  user.lastActive = new Date();
-  await user.save();
-
-  res.cookie("token", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 10 * 24 * 60 * 60 * 1000,
-  });
-
-  return res.status(200).json({
-    success: true,
-    message,
-    token,
-    role: user.role,
-    user: {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
-    },
-  });
-}
-
 const firebaseLogin = async (req, res) => {
   const { idToken, role } = req.body;
 
@@ -178,9 +38,9 @@ const firebaseLogin = async (req, res) => {
     if (!adminAuth) {
       return res.status(500).json({ success: false, message: "Firebase Admin is not properly configured on the server." });
     }
-
+    
     const decodedToken = await adminAuth.verifyIdToken(idToken);
-
+    
     // The decoded token will have an email (if Gmail login) or phone_number (if Phone login)
     const email = decodedToken.email;
     const phone = decodedToken.phone_number;
@@ -192,17 +52,20 @@ const firebaseLogin = async (req, res) => {
       user = await User.findOne({ email: new RegExp(`^${email.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") });
     } else if (phone) {
       const phoneCandidates = buildPhoneCandidates(phone);
-      const account = await resolvePhoneAccount(phoneCandidates, role);
-      if (account.onlyAdmin) {
-        return res.status(403).json({ success: false, message: "Admin cannot login via Firebase" });
+      const validRequestedRole = role && ["claimant", "respondent", "neutral"].includes(role) ? role : null;
+      if (validRequestedRole) {
+        user = await User.findOne({ phone: { $in: phoneCandidates }, role: validRequestedRole });
       }
-      user = account.user;
+      if (!user) {
+        user = await User.findOne({ phone: { $in: phoneCandidates } });
+      }
     }
 
     // If user does not exist, we automatically register them
     if (!user) {
-      const assignedRole = pickValidRole(role) || "claimant";
-
+      // Default to "claimant" if no role is provided
+      const assignedRole = role && ["claimant", "respondent", "neutral"].includes(role) ? role : "claimant";
+      
       user = await User.create({
         email: email || "",
         phone: phone || "",
@@ -211,263 +74,62 @@ const firebaseLogin = async (req, res) => {
         status: "active",
         isVerified: true,
       });
-    } else if ((!user.name || user.name === "Firebase User" || user.name === "User") && name && name !== "Firebase User") {
-      user.name = name;
+    } else {
+      // If user exists but selected a different role (and not admin), update their role
+      let changed = false;
+      if (role && ["claimant", "respondent", "neutral"].includes(role) && user.role !== role && user.role !== "admin") {
+        user.role = role;
+        changed = true;
+      }
+      if ((!user.name || user.name === "Firebase User" || user.name === "User") && name && name !== "Firebase User") {
+        user.name = name;
+        changed = true;
+      }
+      if (changed) {
+        await user.save();
+      }
     }
 
-    return await issueSessionResponse(req, res, user, role, "Firebase Login successful");
+    // Double check that an admin didn't somehow bypass
+    if (user.role === "admin") {
+      return res.status(403).json({ success: false, message: "Admin cannot login via Firebase" });
+    }
+
+    // Generate our standard backend JWT
+    const token = jwt.sign(
+      { id: user._id, role: user.role, email: user.email },
+      process.env.JWT_SECRET || "default_secret", 
+      { expiresIn: "10d" }
+    );
+
+    // Update last active time on login
+    user.lastActive = new Date();
+    await user.save();
+
+    // Set HTTP-only secure cookie to overwrite any existing token cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 10 * 24 * 60 * 60 * 1000, // 10 days
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Firebase Login successful",
+      token,
+      role: user.role,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+      },
+    });
   } catch (error) {
     console.error("Firebase Login Error:", error);
     return res.status(401).json({ success: false, message: "Invalid Firebase token or server error" });
-  }
-};
-
-/**
- * Attempt real carrier SMS OTP if an SMS gateway (Twilio SMS, Fast2SMS, or MSG91) is configured.
- * Returns { sent: true, provider } on success, or { sent: false, reason } if unconfigured/failed.
- */
-async function trySendSmsOtp(clean10, otp) {
-  const phoneE164 = `+91${clean10}`;
-
-  if (process.env.TWILIO_SID && process.env.TWILIO_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
-    try {
-      const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
-      await client.messages.create({
-        from: process.env.TWILIO_PHONE_NUMBER.trim(),
-        to: phoneE164,
-        body: `Your Utkal ODR login OTP is ${otp}. Valid for 10 minutes.`,
-      });
-      return { sent: true, provider: "twilio" };
-    } catch (err) {
-      console.warn("Twilio SMS OTP failed:", err.message);
-      return { sent: false, reason: err.message };
-    }
-  }
-
-  if (process.env.FAST2SMS_API_KEY) {
-    try {
-      const res = await fetch("https://www.fast2sms.com/dev/bulkV2", {
-        method: "POST",
-        headers: {
-          authorization: process.env.FAST2SMS_API_KEY.trim(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          route: "otp",
-          variables_values: otp,
-          numbers: clean10,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data?.return) {
-        return { sent: true, provider: "fast2sms" };
-      }
-      return { sent: false, reason: data?.message || "Fast2SMS rejected request" };
-    } catch (err) {
-      console.warn("Fast2SMS OTP failed:", err.message);
-      return { sent: false, reason: err.message };
-    }
-  }
-
-  if (process.env.MSG91_AUTH_KEY && process.env.MSG91_TEMPLATE_ID) {
-    try {
-      const res = await fetch("https://control.msg91.com/api/v5/otp", {
-        method: "POST",
-        headers: {
-          authkey: process.env.MSG91_AUTH_KEY.trim(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          template_id: process.env.MSG91_TEMPLATE_ID.trim(),
-          mobile: `91${clean10}`,
-          otp,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data?.type === "success") {
-        return { sent: true, provider: "msg91" };
-      }
-      return { sent: false, reason: data?.message || "MSG91 rejected request" };
-    } catch (err) {
-      console.warn("MSG91 OTP failed:", err.message);
-      return { sent: false, reason: err.message };
-    }
-  }
-
-  return { sent: false, reason: "NO_SERVER_SMS_GATEWAY" };
-}
-
-/**
- * Server-side OTP dispatch: uses configured SMS gateway (Twilio SMS / Fast2SMS / MSG91) for any
- * dynamic phone number, or falls back to Hostinger SMTP email for registered accounts.
- */
-const sendPhoneOtp = async (req, res) => {
-  try {
-    const { phone, role } = req.body;
-    if (role === "admin") {
-      return res.status(403).json({ success: false, message: "Admin cannot login via Phone OTP" });
-    }
-
-    const clean10 = normalizePhone10(phone);
-    if (!clean10) {
-      return res.status(400).json({ success: false, message: "Please enter a valid 10-digit mobile number" });
-    }
-
-    const phoneKey = `+91${clean10}`;
-    const phoneCandidates = buildPhoneCandidates(clean10);
-    const { onlyAdmin, email, name } = await resolvePhoneAccount(phoneCandidates, role);
-
-    if (onlyAdmin) {
-      return res.status(403).json({ success: false, message: "Admin accounts must sign in using Email & Password" });
-    }
-
-    const otp = String(crypto.randomInt(100000, 1000000));
-    const smsAttempt = await trySendSmsOtp(clean10, otp);
-
-    if (!smsAttempt.sent && !email) {
-      return res.status(404).json({
-        success: false,
-        code: "NO_REGISTERED_EMAIL",
-        message:
-          `Real SMS OTP is not active on the server (Firebase requires Blaze billing or a server SMS gateway like TWILIO_PHONE_NUMBER / FAST2SMS_API_KEY / MSG91_AUTH_KEY), and no registered email was found for ${phoneKey}.`,
-      });
-    }
-
-    const otpHash = hashPhoneOtp(phoneKey, otp);
-    const expiresAt = new Date(Date.now() + OTP_TTL_MS);
-
-    await PhoneOtp.findOneAndUpdate(
-      { phoneKey },
-      {
-        $set: {
-          phoneKey,
-          role: pickValidRole(role) || "any",
-          email: email || "",
-          name: name || phoneKey,
-          otpHash,
-          attempts: 0,
-          expiresAt,
-        },
-      },
-      { upsert: true, new: true }
-    );
-
-    if (smsAttempt.sent) {
-      return res.status(200).json({
-        success: true,
-        channel: "sms",
-        provider: smsAttempt.provider,
-        message: `SMS OTP sent to ${phoneKey}`,
-      });
-    }
-
-    const fromAddress =
-      process.env.SMTP_FROM ||
-      `"Utkal ODR" <${process.env.SMTP_USER || process.env.EMAIL || "contact@utkalodr.com"}>`;
-
-    await transporter.sendMail({
-      from: fromAddress,
-      to: email,
-      subject: "Your Utkal ODR Login OTP",
-      html: `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 520px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-          <div style="background: #0f172a; padding: 20px 24px; color: #ffffff;">
-            <h2 style="margin: 0; font-size: 18px;">Utkal ODR — One-Time Login Password</h2>
-          </div>
-          <div style="padding: 24px; color: #1e293b; line-height: 1.6;">
-            <p style="margin-top: 0;">Hello${name ? ` <strong>${name}</strong>` : ""},</p>
-            <p>Use the verification code below to sign in with your registered mobile number <strong>${phoneKey}</strong>:</p>
-            <div style="margin: 20px 0; padding: 14px 20px; background: #f1f5f9; border-radius: 8px; text-align: center; font-size: 28px; font-weight: 700; letter-spacing: 6px; color: #0f172a;">
-              ${otp}
-            </div>
-            <p style="font-size: 13px; color: #475569;">This OTP is valid for <strong>10 minutes</strong>. Do not share it with anyone.</p>
-            <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Sent via registered email because SMS delivery requires Firebase Blaze / DLT setup.</p>
-          </div>
-        </div>
-      `,
-    });
-
-    const maskedEmail = maskEmail(email);
-    return res.status(200).json({
-      success: true,
-      channel: "email",
-      maskedEmail,
-      message: `OTP sent to your registered email (${maskedEmail}) linked with ${phoneKey}`,
-    });
-  } catch (error) {
-    console.error("Send Phone OTP Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to send OTP. Please try again or use Email login.",
-    });
-  }
-};
-
-/**
- * Verify a server-issued 6-digit phone login OTP and issue a user session.
- */
-const verifyPhoneOtp = async (req, res) => {
-  try {
-    const { phone, otp, role } = req.body;
-    if (role === "admin") {
-      return res.status(403).json({ success: false, message: "Admin cannot login via Phone OTP" });
-    }
-
-    const clean10 = normalizePhone10(phone);
-    const cleanOtp = typeof otp === "string" ? otp.trim() : "";
-    if (!clean10 || !/^\d{6}$/.test(cleanOtp)) {
-      return res.status(400).json({ success: false, message: "Please enter a valid phone number and 6-digit OTP" });
-    }
-
-    const phoneKey = `+91${clean10}`;
-    const record = await PhoneOtp.findOne({ phoneKey });
-    if (!record || record.expiresAt < new Date()) {
-      if (record) await PhoneOtp.deleteOne({ _id: record._id });
-      return res.status(400).json({ success: false, message: "OTP has expired or was not requested. Please request a new OTP." });
-    }
-
-    if (record.attempts >= OTP_MAX_ATTEMPTS) {
-      await PhoneOtp.deleteOne({ _id: record._id });
-      return res.status(429).json({ success: false, message: "Too many incorrect OTP attempts. Please request a new OTP." });
-    }
-
-    const candidateHash = Buffer.from(hashPhoneOtp(phoneKey, cleanOtp), "hex");
-    const storedHash = Buffer.from(record.otpHash, "hex");
-    const isMatch = candidateHash.length === storedHash.length && crypto.timingSafeEqual(candidateHash, storedHash);
-
-    if (!isMatch) {
-      record.attempts += 1;
-      await record.save();
-      return res.status(400).json({ success: false, message: "Invalid OTP entered. Please check and try again." });
-    }
-
-    await PhoneOtp.deleteOne({ _id: record._id });
-
-    const phoneCandidates = buildPhoneCandidates(clean10);
-    const account = await resolvePhoneAccount(phoneCandidates, role);
-    if (account.onlyAdmin) {
-      return res.status(403).json({ success: false, message: "Admin accounts must sign in using Email & Password" });
-    }
-
-    let user = account.user;
-    if (!user) {
-      const assignedRole = pickValidRole(role) || "claimant";
-      user = await User.create({
-        email: record.email || "",
-        phone: phoneKey,
-        name: record.name || phoneKey,
-        role: assignedRole,
-        status: "active",
-        isVerified: true,
-      });
-    } else if (!user.email && record.email) {
-      user.email = record.email;
-    }
-
-    return await issueSessionResponse(req, res, user, role, "Phone OTP login successful");
-  } catch (error) {
-    console.error("Verify Phone OTP Error:", error);
-    return res.status(500).json({ success: false, message: "Failed to verify OTP" });
   }
 };
 
@@ -502,7 +164,5 @@ const verifyEmail = async (req, res) => {
 
 module.exports = {
   firebaseLogin,
-  sendPhoneOtp,
-  verifyPhoneOtp,
   verifyEmail,
 };
