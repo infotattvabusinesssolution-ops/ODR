@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Mail, Lock, CircleUserRound, ChevronDown, Phone, Box, MapPin, Search, Scale, FileText, Video, FileCheck, Infinity, Gavel, BookOpen, Briefcase, Landmark } from "lucide-react";
+import { Mail, Lock, CircleUserRound, ChevronDown, Phone, Box, MapPin, Search, Scale, FileText, Video, FileCheck, Gavel, BookOpen, Briefcase, Landmark } from "lucide-react";
 import { toast } from "react-toastify";
 import { authApi } from "./api/authApi";
-import { API_BASE_URL } from "./api/axiosConfig";
+import axiosInstance from "./api/axiosConfig";
 import { useAuth } from "./context/AuthContext";
 import { auth, googleProvider, signInWithPopup, RecaptchaVerifier, signInWithPhoneNumber } from "./config/firebase";
 import "./Login.css";
@@ -23,6 +23,15 @@ export default function Login({ getRole }) {
   const [phoneForLogin, setPhoneForLogin] = useState("");
   const [otp, setOtp] = useState("");
   const [isOtpSent, setIsOtpSent] = useState(false);
+  const [isRecaptchaVerified, setIsRecaptchaVerified] = useState(false);
+  const [recaptchaResetKey, setRecaptchaResetKey] = useState(0);
+
+  const reportError = (msg) => {
+    setError(msg);
+    if (msg) {
+      toast.error(msg);
+    }
+  };
 
   const roles = [
     { id: "admin", label: "Admin" },
@@ -92,12 +101,11 @@ export default function Login({ getRole }) {
 
   const handleFirebaseLogin = async (idToken) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/firebase-login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, role: selectedRole })
+      const response = await axiosInstance.post("/api/auth/firebase-login", {
+        idToken,
+        role: selectedRole,
       });
-      const result = await response.json();
+      const result = response.data;
 
       if (result.success) {
         login(result.user, result.token);
@@ -115,10 +123,10 @@ export default function Login({ getRole }) {
                   : "/"
         );
       } else {
-        setError(result.message || "Firebase login failed");
+        reportError(result.message || "Firebase login failed");
       }
     } catch (err) {
-      setError(err.message || "Firebase login error");
+      reportError(err.response?.data?.message || err.message || "Firebase login error");
     } finally {
       setLoading(false);
     }
@@ -126,31 +134,23 @@ export default function Login({ getRole }) {
 
   const loginWithGoogle = async (e) => {
     e.preventDefault();
-    if (selectedRole === "Select Role") return setError("Please select a role");
-    if (selectedRole === "admin") return setError("Admins cannot login via Firebase");
+    if (selectedRole === "Select Role") return reportError("Please select a role");
+    if (selectedRole === "admin") return reportError("Admins cannot login via Firebase");
 
     setLoading(true);
+    setError("");
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken();
       await handleFirebaseLogin(idToken);
     } catch (err) {
-      setError(err.message);
+      reportError(err.message);
       setLoading(false);
     }
   };
 
-  const getRecaptchaContainer = () => {
-    let container = document.getElementById("recaptcha-container");
-    if (!container) {
-      container = document.createElement("div");
-      container.id = "recaptcha-container";
-      document.body.appendChild(container);
-    }
-    return container;
-  };
-
-  const clearRecaptcha = () => {
+  const clearRecaptcha = useCallback(() => {
+    setIsRecaptchaVerified(false);
     if (window.recaptchaVerifier) {
       try {
         window.recaptchaVerifier.clear();
@@ -162,7 +162,7 @@ export default function Login({ getRole }) {
     if (window.grecaptcha && typeof window.grecaptcha.reset === "function") {
       try {
         window.grecaptcha.reset();
-      } catch (err) {
+      } catch {
         // ignore
       }
     }
@@ -170,15 +170,15 @@ export default function Login({ getRole }) {
     if (container) {
       container.innerHTML = "";
     }
-  };
+  }, []);
 
   useEffect(() => {
     return () => {
       clearRecaptcha();
     };
-  }, []);
+  }, [clearRecaptcha]);
 
-  const setupRecaptcha = () => {
+  const setupRecaptcha = useCallback(() => {
     if (window.recaptchaVerifier) {
       return window.recaptchaVerifier;
     }
@@ -193,16 +193,19 @@ export default function Login({ getRole }) {
     window.recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
       size: "normal",
       callback: () => {
-        // reCAPTCHA solved
+        setIsRecaptchaVerified(true);
+        setError("");
       },
       "expired-callback": () => {
-        toast.warn("reCAPTCHA expired. Please check again.");
+        setIsRecaptchaVerified(false);
+        toast.warn("reCAPTCHA expired. Please verify again.");
         clearRecaptcha();
-      }
+        setRecaptchaResetKey((k) => k + 1);
+      },
     });
 
     return window.recaptchaVerifier;
-  };
+  }, [clearRecaptcha]);
 
   useEffect(() => {
     if (showPhoneLogin && !isOtpSent) {
@@ -210,7 +213,9 @@ export default function Login({ getRole }) {
         try {
           const verifier = setupRecaptcha();
           if (verifier && typeof verifier.render === "function") {
-            verifier.render().catch(() => {});
+            verifier.render().catch((err) => {
+              console.warn("reCAPTCHA render warning:", err);
+            });
           }
         } catch (e) {
           console.warn("reCAPTCHA render notice:", e);
@@ -218,23 +223,26 @@ export default function Login({ getRole }) {
       }, 200);
       return () => clearTimeout(timer);
     }
-  }, [showPhoneLogin, isOtpSent]);
+  }, [showPhoneLogin, isOtpSent, recaptchaResetKey, setupRecaptcha]);
 
   const loginWithPhone = async (e) => {
     if (e) e.preventDefault();
-    if (selectedRole === "Select Role") return setError("Please select a role");
-    if (selectedRole === "admin") return setError("Admins cannot login via Firebase");
-    if (!phoneForLogin) return setError("Please enter your phone number");
+    if (selectedRole === "Select Role") return reportError("Please select a role");
+    if (selectedRole === "admin") return reportError("Admins cannot login via Firebase");
+    if (!phoneForLogin) return reportError("Please enter your phone number");
 
     const digitsOnly = phoneForLogin.replace(/\D/g, "");
-    const cleanNumber = digitsOnly.startsWith("91") && digitsOnly.length > 10 ? digitsOnly.slice(2) : digitsOnly;
+    const cleanNumber = digitsOnly.startsWith("91") && digitsOnly.length > 10 ? digitsOnly.slice(-10) : digitsOnly;
 
     if (cleanNumber.length !== 10) {
-      return setError("Please enter a valid 10-digit mobile number");
+      return reportError("Please enter a valid 10-digit mobile number");
+    }
+
+    if (!isRecaptchaVerified) {
+      return reportError("Please complete the 'I'm not a robot' reCAPTCHA check first.");
     }
 
     const fullPhoneNumber = `+91${cleanNumber}`;
-
     setError("");
 
     try {
@@ -247,23 +255,32 @@ export default function Login({ getRole }) {
     } catch (err) {
       console.error("Phone sign-in error:", err);
       clearRecaptcha();
+      setRecaptchaResetKey((k) => k + 1);
 
-      if (err.code === "auth/invalid-app-credential") {
-        setError(
-          `Firebase app verification failed (auth/invalid-app-credential). Please ensure: 1) "${window.location.hostname}" is added to Firebase Console -> Authentication -> Settings -> Authorized Domains. 2) If using Firebase free Spark plan, use a registered test phone number (e.g. +91 99999 99999 with OTP 123456).`
+      if (err.code === "auth/unauthorized-domain") {
+        reportError(
+          `Domain "${window.location.hostname}" is not authorized in Firebase Authentication. Add it under Firebase Console -> Authentication -> Settings -> Authorized domains.`
+        );
+      } else if (err.code === "auth/billing-not-enabled") {
+        reportError(
+          "Firebase real SMS OTP requires Blaze billing in Firebase Console (Spark plan only supports configured test phone numbers like 9999999999 / OTP 000000)."
+        );
+      } else if (err.code === "auth/invalid-app-credential") {
+        reportError(
+          `Firebase app verification failed for "${window.location.hostname}". Ensure the domain is in Firebase Authorized Domains and Firebase Phone provider is enabled (or use test number 9999999999 / OTP 000000).`
         );
       } else if (err.code === "auth/captcha-check-failed" || (err.message && err.message.includes("Hostname match not found"))) {
-        setError(
-          `reCAPTCHA verification failed for hostname "${window.location.hostname}". Please ensure this domain is added to Firebase Console -> Authentication -> Settings -> Authorized Domains.`
+        reportError(
+          `reCAPTCHA verification failed for hostname "${window.location.hostname}". Add this domain to Firebase Console -> Authentication -> Settings -> Authorized Domains.`
         );
       } else if (err.code === "auth/invalid-phone-number") {
-        setError("Invalid phone number format. Please enter a valid 10-digit number.");
+        reportError("Invalid phone number format. Please enter a valid 10-digit number.");
       } else if (err.code === "auth/too-many-requests") {
-        setError("Too many requests from this device. Please wait a few moments before trying again.");
+        reportError("Too many OTP requests from this device. Please wait a few minutes or use email login.");
       } else if (err.code === "auth/quota-exceeded") {
-        setError("SMS quota exceeded. Please check Firebase SMS quota or test phone numbers.");
+        reportError("Firebase SMS quota exceeded. Please check Firebase SMS quota or use a configured test phone number.");
       } else {
-        setError(err.message || "Failed to send OTP. Please try again.");
+        reportError(err.message || "Failed to send OTP. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -273,7 +290,7 @@ export default function Login({ getRole }) {
   const verifyOTP = async (e) => {
     if (e) e.preventDefault();
     if (!otp || otp.trim().length === 0) {
-      return setError("Please enter the OTP");
+      return reportError("Please enter the OTP");
     }
 
     setLoading(true);
@@ -289,11 +306,11 @@ export default function Login({ getRole }) {
     } catch (err) {
       console.error("OTP verification error:", err);
       if (err.code === "auth/invalid-verification-code") {
-        setError("Invalid OTP entered. Please check and try again.");
+        reportError("Invalid OTP entered. Please check and try again.");
       } else if (err.code === "auth/code-expired") {
-        setError("OTP has expired. Please request a new one.");
+        reportError("OTP has expired. Please request a new one.");
       } else {
-        setError(err.message || "Invalid OTP");
+        reportError(err.message || "Invalid OTP");
       }
     } finally {
       setLoading(false);
@@ -366,7 +383,15 @@ export default function Login({ getRole }) {
 
             {error && <div className="error-banner">{error}</div>}
 
-            <form className="form-group" onSubmit={handleLogin}>
+            <form
+              className="form-group"
+              onSubmit={(e) => {
+                if (showPhoneLogin) {
+                  return isOtpSent ? verifyOTP(e) : loginWithPhone(e);
+                }
+                return handleLogin(e);
+              }}
+            >
 
               {/* Role Dropdown */}
               <div className="dropdown-container">
@@ -486,6 +511,7 @@ export default function Login({ getRole }) {
                             Firebase Test Login: <strong>9999999999</strong> (OTP: <strong>000000</strong>)
                           </div>
                           <div id="recaptcha-container" style={{ display: "flex", justifyContent: "center", margin: "6px 0", minHeight: "78px" }}></div>
+                          {error && <div className="error-banner" style={{ marginBottom: 0 }}>{error}</div>}
                           <button type="button" onClick={loginWithPhone} className="btn-success" disabled={loading}>
                             {loading ? "Sending OTP..." : "Send OTP"}
                           </button>

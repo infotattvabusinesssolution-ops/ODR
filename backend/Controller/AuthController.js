@@ -2,6 +2,25 @@ const { adminAuth } = require("../config/firebase");
 const User = require("../models/users");
 const jwt = require("jsonwebtoken");
 
+function buildPhoneCandidates(phone) {
+  if (!phone || typeof phone !== "string") return [];
+  const trimmed = phone.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+  return Array.from(
+    new Set(
+      [
+        trimmed,
+        digits,
+        last10,
+        last10 ? `+91${last10}` : "",
+        last10 ? `91${last10}` : "",
+        last10 ? `+91 ${last10}` : "",
+      ].filter(Boolean)
+    )
+  );
+}
+
 const firebaseLogin = async (req, res) => {
   const { idToken, role } = req.body;
 
@@ -30,9 +49,16 @@ const firebaseLogin = async (req, res) => {
     let user = null;
 
     if (email) {
-      user = await User.findOne({ email });
+      user = await User.findOne({ email: new RegExp(`^${email.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") });
     } else if (phone) {
-      user = await User.findOne({ phone });
+      const phoneCandidates = buildPhoneCandidates(phone);
+      const validRequestedRole = role && ["claimant", "respondent", "neutral"].includes(role) ? role : null;
+      if (validRequestedRole) {
+        user = await User.findOne({ phone: { $in: phoneCandidates }, role: validRequestedRole });
+      }
+      if (!user) {
+        user = await User.findOne({ phone: { $in: phoneCandidates } });
+      }
     }
 
     // If user does not exist, we automatically register them
