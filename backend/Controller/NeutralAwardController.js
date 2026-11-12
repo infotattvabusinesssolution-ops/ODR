@@ -3,6 +3,7 @@ const Case = require("../models/Case");
 const cloudinary = require("../config/cloudinary");
 const fs = require("fs");
 const { storeUploadedFile } = require("../utils/fileStorage");
+const { sendAwardPublishedEmails } = require("../Service/emailService");
 
 // Helper to format file size
 const formatBytes = (bytes, decimals = 2) => {
@@ -142,6 +143,20 @@ const publishAwardDoc = async (req, res) => {
         success: false,
         message: "Document not found or unauthorized.",
       });
+    }
+
+    try {
+      const caseRecord = await Case.findOne({ caseId: award.caseId })
+        .populate("claimant", "name email phone")
+        .populate("respondent", "name email phone")
+        .populate("neutral", "name email phone");
+
+      await sendAwardPublishedEmails({
+        award,
+        caseData: caseRecord,
+      });
+    } catch (emailErr) {
+      console.warn("Notice: Award publication email dispatch failed:", emailErr.message);
     }
 
     res.status(200).json({

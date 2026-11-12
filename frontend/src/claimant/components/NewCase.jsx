@@ -106,6 +106,7 @@ export default function NewCase() {
       Object.entries(formData).forEach(([key, value]) => {
         if (value) formDataToSend.append(key, value);
       });
+      formDataToSend.append("filedBy", "claimant");
 
       const response = await axiosInstance.post("/claimant/add-new-case",
         formDataToSend,

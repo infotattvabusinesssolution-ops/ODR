@@ -1,10 +1,18 @@
 // src/admin/component/Modal/NewCaseForm.jsx
-import { useState, useEffect } from "react";
-import axios from "axios";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "react-toastify";
 import { Menu, Plus, Paperclip } from "lucide-react";
-import { documentDetailsApi } from "../../../api/AdminApi";
+import axiosInstance from "../../../api/axiosConfig";
 import { caseApi } from "../../../api/AdminApi";
+
+const GENERIC_NEUTRAL_NAMES = new Set(["Neutral User", "User", "Firebase User"]);
+
+function getNeutralDisplayName(neutral, fallback = "") {
+  if (neutral?.name && !GENERIC_NEUTRAL_NAMES.has(neutral.name)) {
+    return neutral.name;
+  }
+  return neutral?.email || fallback || "";
+}
 
 export default function ScheduleHearing({ onClose }) {
   const [newHearingData, setNewHearingData] = useState([]);
@@ -12,6 +20,7 @@ export default function ScheduleHearing({ onClose }) {
     caseName: "",
     caseId: "",
     Judge: "",
+    neutralId: "",
     hearingType: "",
     date: "",
     time: "",
@@ -21,8 +30,55 @@ export default function ScheduleHearing({ onClose }) {
     meetLink: "https://meet.google.com/tky-hnhr-yfu",
   });
 
+  const neutralOptions = useMemo(() => {
+    const map = new Map();
+    for (const item of newHearingData || []) {
+      const label = getNeutralDisplayName(item.neutral, item.Judge);
+      if (!label) continue;
+      const key = item.neutral?._id || label;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          neutralId: item.neutral?._id || "",
+          label,
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [newHearingData]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    if (name === "caseName" || name === "caseId") {
+      const matchedCase = (newHearingData || []).find((item) =>
+        name === "caseId"
+          ? item.caseId === value
+          : (item.DisputeName || item.caseName) === value
+      );
+      if (matchedCase) {
+        const neutralName = getNeutralDisplayName(matchedCase.neutral, matchedCase.Judge);
+        setFormData((prev) => ({
+          ...prev,
+          caseName: matchedCase.DisputeName || matchedCase.caseName || value,
+          caseId: matchedCase.caseId || prev.caseId,
+          Judge: neutralName || prev.Judge,
+          neutralId: matchedCase.neutral?._id || "",
+        }));
+        return;
+      }
+    }
+
+    if (name === "Judge") {
+      const matchedNeutral = neutralOptions.find((opt) => opt.label === value);
+      setFormData((prev) => ({
+        ...prev,
+        Judge: value,
+        neutralId: matchedNeutral?.neutralId || "",
+      }));
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       [name]: value,
@@ -47,11 +103,7 @@ export default function ScheduleHearing({ onClose }) {
     e.preventDefault();
 
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3636";
-      const response = await axios.post(
-        `${API_BASE_URL}/admin/new-hearing`,
-        formData
-      );
+      const response = await axiosInstance.post("/admin/new-hearing", formData);
 
       toast.success("Session Scheduled Successfully!");
 
@@ -61,6 +113,7 @@ export default function ScheduleHearing({ onClose }) {
         caseName: "",
         caseId: "",
         Judge: "",
+        neutralId: "",
         hearingType: "",
         date: "",
         time: "",
@@ -107,9 +160,9 @@ export default function ScheduleHearing({ onClose }) {
               >
                 <option value="">Select Case Name</option>
                 {newHearingData &&
-                  newHearingData.map((item, index) => (
-                    <option key={item._id} value={item.caseName}>
-                      {` ${item.DisputeName} vs ${item.oppositePartyName}`}
+                  newHearingData.map((item) => (
+                    <option key={item._id} value={item.DisputeName || item.caseName || ""}>
+                      {`${item.DisputeName || "Dispute"} vs ${item.oppositePartyName || "Respondent"}`}
                     </option>
                   ))}
               </select>
@@ -142,12 +195,11 @@ export default function ScheduleHearing({ onClose }) {
                 required
               >
                 <option value="">Select Mediator / Judge</option>
-                {newHearingData &&
-                  newHearingData.map((item, index) => (
-                    <option key={item._id} value={item.Judge}>
-                      {item.neutral?.name && item.neutral?.name !== "Neutral User" && item.neutral?.name !== "User" && item.neutral?.name !== "Firebase User" ? item.neutral.name : (item.neutral?.email || item.Judge || "Mediator")}
-                    </option>
-                  ))}
+                {neutralOptions.map((opt) => (
+                  <option key={opt.key} value={opt.label}>
+                    {opt.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="form-group">

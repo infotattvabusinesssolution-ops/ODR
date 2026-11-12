@@ -122,6 +122,7 @@ export default function CaseFile({ onClose, onSuccess }) {
       formDataToSend.append("oppositeMobile", (formData.oppositeMobile || formData.mobileNumber).trim());
       formDataToSend.append("mobileNumber", (formData.mobileNumber || formData.oppositeMobile).trim());
       formDataToSend.append("consent", formData.consent || "Yes");
+      formDataToSend.append("filedBy", "admin");
       formDataToSend.append("file", formData.file);
 
       const response = await axiosInstance.post("/claimant/add-new-case", formDataToSend, {

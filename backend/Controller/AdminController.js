@@ -3,7 +3,11 @@ const AdminUser = require("../models/users");
 const adminDocument = require("../models/documentDetail");
 const hearingSchedule = require("../models/hearing");
 const caseNotification = require("../models/caseNotification");
-const { sendAssignEmail } = require("../Service/emailService");
+const {
+  sendAssignEmail,
+  sendCaseAssignmentEmails,
+  sendEvidenceNotificationEmails,
+} = require("../Service/emailService");
 const { sendAssignHearingEmail, notifyAllHearingParties } = require("../Service/hearingService");
 const {
   sendHearingWhatsAppMessage,
@@ -550,7 +554,10 @@ const documentUpload = async (req, res) => {
           { caseId: caseId },
           ...(mongoose.isValidObjectId(caseId) ? [{ _id: caseId }] : []),
         ],
-      }).populate("claimant", "name email");
+      })
+        .populate("claimant", "name email")
+        .populate("respondent", "name email")
+        .populate("neutral", "name email");
     }
 
     if (!caseData && claimantName) {
@@ -560,12 +567,18 @@ const documentUpload = async (req, res) => {
           { CustomersName: new RegExp(`^${claimantName}$`, "i") },
           { DisputeName: new RegExp(`^${claimantName}$`, "i") },
         ],
-      }).populate("claimant", "name email");
+      })
+        .populate("claimant", "name email")
+        .populate("respondent", "name email")
+        .populate("neutral", "name email");
 
       if (!caseData) {
         const user = await AdminUser.findOne({ name: new RegExp(`^${claimantName}$`, "i") });
         if (user) {
-          caseData = await Case.findOne({ claimant: user._id }).populate("claimant", "name email");
+          caseData = await Case.findOne({ claimant: user._id })
+            .populate("claimant", "name email")
+            .populate("respondent", "name email")
+            .populate("neutral", "name email");
         }
       }
     }
@@ -603,6 +616,17 @@ const documentUpload = async (req, res) => {
           uploadedAt: new Date(),
         },
       ],
+    });
+
+    await sendEvidenceNotificationEmails({
+      caseData,
+      caseId: targetCaseId,
+      documentName: storedFile.fileName,
+      fileUrl: storedFile.fileUrl,
+      uploadedBy: "ADMIN",
+      status: caseDocument.status || "Pending",
+    }).catch((notifErr) => {
+      console.warn("Notice: Admin evidence notification failed:", notifErr.message);
     });
 
     return res.status(201).json({
@@ -759,7 +783,7 @@ const createNewScheduleHearing = async (req, res) => {
       ? meetLink.trim()
       : `https://meet.google.com/${generateRoomCode()}`;
 
-    // Step A: lookup case if caseId is provided
+    // Step A: lookup case if caseId is provided (populate all party contacts for hearing notifications)
     let caseData = null;
     if (caseId) {
       caseData = await Case.findOne({
@@ -769,7 +793,10 @@ const createNewScheduleHearing = async (req, res) => {
           { caseNumber: caseId },
           ...(caseName ? [{ DisputeName: caseName }] : []),
         ],
-      });
+      })
+        .populate("claimant", "email phone name")
+        .populate("respondent", "email phone name")
+        .populate("neutral", "email phone name");
     }
 
     const assignedNeutralId = neutralId || req.user?.id || (req.neutral ? req.neutral._id : (caseData?.neutral || null));
@@ -817,10 +844,24 @@ const createNewScheduleHearing = async (req, res) => {
 
     // Notify Claimant, Respondent & Neutral via Email and WhatsApp
     try {
-      const populatedCase = caseData || await Case.findOne({ caseId: newHearing.caseId })
-        .populate("claimant", "email phone name")
-        .populate("respondent", "email phone name")
-        .populate("neutral", "email phone name");
+      let populatedCase = caseData;
+      if (!populatedCase || !populatedCase.neutral?.email) {
+        const reloadedCase = await Case.findOne({ caseId: newHearing.caseId })
+          .populate("claimant", "email phone name")
+          .populate("respondent", "email phone name")
+          .populate("neutral", "email phone name");
+        if (reloadedCase) populatedCase = reloadedCase;
+      }
+
+      if (assignedNeutralId && !populatedCase?.neutral?.email) {
+        const assignedNeutralUser = await AdminUser.findById(assignedNeutralId, "email phone name");
+        if (assignedNeutralUser) {
+          populatedCase = populatedCase
+            ? { ...(populatedCase.toObject ? populatedCase.toObject() : populatedCase), neutral: assignedNeutralUser }
+            : { caseId: newHearing.caseId, neutral: assignedNeutralUser };
+        }
+      }
+
       await notifyAllHearingParties(newHearing, populatedCase);
     } catch (notifyErr) {
       console.warn("Notice: Hearing party notifications error:", notifyErr.message);
@@ -1041,65 +1082,18 @@ const assignCase = async (req, res) => {
       { neutral: neutralId, status: "Active" },
       { new: true }
     )
-      .populate("claimant")
-      .populate("neutral");
+      .populate("claimant", "name email")
+      .populate("respondent", "name email")
+      .populate("neutral", "name email");
 
     if (!updatedCase) {
       return res.status(404).json({ message: "Case not found" });
     }
 
-    const neutral = updatedCase.neutral;
-    const neutralEmail = neutral?.email || null;
-
-    //  fetch respondent fields from Case model
-    const respondentEmail = updatedCase.oppositePartyEmail;
-    const claimantEmail = updatedCase.CustomersEmail;
-    // =====================================================================
-    // 📧 SEND EMAIL - AND SAVE NOTIFICATION
-    // =====================================================================
-    if (neutralEmail) {
-      try {
-        const info = await sendAssignEmail(
-          neutralEmail,
-          updatedCase.caseId,
-          neutral?.name || "Neutral",
-          updatedCase.DisputeType,
-          updatedCase.DisputeName,
-          updatedCase.oppositePartyName,
-          updatedCase.createdAt
-        );
-
-        // ================================
-        //  SAVE CASE SUMMARY IN NOTIFICATION (Structured JSON)
-        // ================================
-        await caseNotification.create({
-          neutral: neutral._id,
-          type: "assignment-summary",
-          status: "sent",
-          respondentEmail,
-          neutralEmail,
-          claimantEmail,
-
-          CaseMessage: {
-            caseId: updatedCase.caseId,
-            assignedNeutral: updatedCase.neutral.name,
-            title: `${updatedCase.DisputeName} vs ${updatedCase.oppositePartyName}  `,
-            disputeType: updatedCase.DisputeType,
-            assignedDate: new Date().toISOString().substring(0, 10),
-          },
-        });
-      } catch (emailErr) {
-        await caseNotification.create({
-          caseId: updatedCase._id,
-          claimant: updatedCase.claimant?._id || null,
-          neutral: neutral._id,
-          respondentEmail,
-          type: "email",
-          status: "failed",
-          error: emailErr.toString(),
-        });
-      }
-    }
+    // Send Assignment Notifications to Mediator, Claimant, and Respondent
+    await sendCaseAssignmentEmails(updatedCase).catch((emailErr) => {
+      console.warn("Case assignment email dispatch failed:", emailErr.message);
+    });
 
     // =====================================================================
     return res.status(200).json({

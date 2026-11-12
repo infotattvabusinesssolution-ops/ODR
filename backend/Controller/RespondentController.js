@@ -12,6 +12,7 @@ const crypto = require("crypto");
 const transporter = require("../config/smtp");
 const mongoose = require("mongoose");
 const { storeUploadedFile } = require("../utils/fileStorage");
+const { sendEvidenceNotificationEmails } = require("../Service/emailService");
 
 const RespondentRegister = async (req, res) => {
   const { role, name, email, password } = req.body;
@@ -406,6 +407,30 @@ const uploadDocumentForRespondent = async (req, res) => {
           },
         ],
       });
+    }
+
+    // Notify Assigned Mediator & Claimant of New Respondent Evidence
+    try {
+      const caseRecord = await Case.findOne({
+        $or: [
+          { caseId: caseId },
+          ...(mongoose.Types.ObjectId.isValid(caseId) ? [{ _id: caseId }] : []),
+        ],
+      })
+        .populate("claimant", "name email phone")
+        .populate("respondent", "name email phone")
+        .populate("neutral", "name email phone");
+
+      await sendEvidenceNotificationEmails({
+        caseData: caseRecord,
+        caseId,
+        documentName: storedFile.fileName,
+        fileUrl: secureUrl,
+        uploadedBy: "RESPONDENT",
+        status: caseDocument.status || "Pending",
+      });
+    } catch (notifErr) {
+      console.warn("Notice: Respondent evidence notification failed:", notifErr.message);
     }
 
     res.status(200).json({

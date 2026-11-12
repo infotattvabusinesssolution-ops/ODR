@@ -26,7 +26,7 @@ function assignHearingTemplate(
           <td style="padding:10px;">${caseId}</td>
         </tr>
          <tr>
-          <td style="background:#fafafa; padding:10px;"><b>createdAt</b></td>
+          <td style="background:#fafafa; padding:10px;"><b>Hearing Date</b></td>
           <td style="padding:10px;">${createdAt}</td>
         </tr>
 

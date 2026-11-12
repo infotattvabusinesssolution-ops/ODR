@@ -248,8 +248,212 @@ function adminDisputeAlertTemplate({
   `;
 }
 
+function buildOdrEmailShell({
+  headerBg = "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+  badgeText,
+  badgeBg = "#ecfdf5",
+  badgeColor = "#047857",
+  badgeBorder = "#a7f3d0",
+  heading = "UTKAL ODR PLATFORM",
+  subheading = "Online Dispute Resolution & Legal Mediation",
+  greetingName,
+  introHtml,
+  sectionTitle = "Case Summary",
+  rows = [],
+  highlightBoxHtml = "",
+  ctaUrl = "",
+  ctaLabel = "",
+  ctaColor = "#2563eb",
+  footerText = "Utkal Online Dispute Resolution • Official Case Notification • Odisha, India",
+}) {
+  const rowsHtml = rows
+    .filter((r) => r && r.value !== undefined && r.value !== null && r.value !== "")
+    .map(
+      (r, idx) => `
+      <tr>
+        <td style="padding:8px 0; color:#64748b; width:40%;${idx > 0 ? " border-top:1px solid #f1f5f9;" : ""}"><b>${r.label}:</b></td>
+        <td style="padding:8px 0; color:#334155;${idx > 0 ? " border-top:1px solid #f1f5f9;" : ""}${r.mono ? " font-family:monospace; font-weight:700; color:#0f172a; font-size:15px;" : ""}">${r.value}</td>
+      </tr>`
+    )
+    .join("");
+
+  return `
+  <div style="font-family: Arial, Helvetica, sans-serif; padding: 20px; background:#f4f6f9;">
+    <div style="max-width:620px; margin:auto; background:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
+      <div style="background: ${headerBg}; padding: 24px 30px; text-align: left;">
+        <h1 style="color:#ffffff; margin:0; font-size:20px; font-weight:700; letter-spacing: 0.5px;">${heading}</h1>
+        <p style="color:#cbd5e1; margin:6px 0 0; font-size:13px;">${subheading}</p>
+      </div>
+      <div style="padding: 30px;">
+        ${badgeText ? `<div style="display:inline-block; background:${badgeBg}; color:${badgeColor}; font-size:12px; font-weight:700; padding:4px 10px; border-radius:20px; margin-bottom:15px; border:1px solid ${badgeBorder};">${badgeText}</div>` : ""}
+        <h2 style="color:#1e293b; font-size:18px; margin: 0 0 12px;">Hello ${greetingName || "Participant"},</h2>
+        <div style="font-size:14px; line-height:1.6; color:#475569; margin: 0 0 20px;">${introHtml}</div>
+        ${rowsHtml ? `
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:16px; margin-bottom:24px;">
+          <h3 style="margin:0 0 12px; font-size:14px; text-transform:uppercase; color:#64748b; letter-spacing:0.5px;">${sectionTitle}</h3>
+          <table style="border-collapse: collapse; width: 100%; font-size: 14px;">${rowsHtml}</table>
+        </div>` : ""}
+        ${highlightBoxHtml || ""}
+        ${ctaUrl && ctaLabel ? `
+        <div style="text-align:center; margin: 22px 0;">
+          <a href="${ctaUrl}" target="_blank" style="display:inline-block; background:${ctaColor}; color:#ffffff; padding:12px 24px; text-decoration:none; border-radius:6px; font-weight:bold; font-size:14px;">${ctaLabel}</a>
+        </div>` : ""}
+        <p style="font-size:13px; color:#64748b; line-height:1.5; margin:0;">
+          For assistance, contact <a href="mailto:contact@utkalodr.com" style="color:#2563eb; text-decoration:none;">contact@utkalodr.com</a>.
+        </p>
+      </div>
+      <div style="background:#f8fafc; padding:18px 30px; border-top:1px solid #e2e8f0; font-size:12px; color:#94a3b8; text-align:center;">
+        ${footerText}
+      </div>
+    </div>
+  </div>
+  `;
+}
+
+function disputeNoticeRespondentTemplate({
+  caseId,
+  customerName,
+  oppositePartyName,
+  disputeType,
+  disputeName,
+  disputeAmount,
+  createdAt,
+  fileUrl,
+}) {
+  return buildOdrEmailShell({
+    headerBg: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
+    badgeText: "OFFICIAL NOTICE OF DISPUTE",
+    badgeBg: "#eff6ff",
+    badgeColor: "#1d4ed8",
+    badgeBorder: "#bfdbfe",
+    greetingName: oppositePartyName || "Respondent",
+    introHtml: `A formal dispute proceeding has been registered against you by <strong>${customerName || "the Claimant"}</strong> on the <strong>Utkal Online Dispute Resolution (ODR)</strong> platform.`,
+    rows: [
+      { label: "Case Reference ID", value: caseId, mono: true },
+      { label: "Claimant", value: customerName || "N/A" },
+      { label: "Dispute Category", value: disputeType || "General" },
+      { label: "Dispute Title", value: disputeName || "Dispute Filing" },
+      { label: "Claim Amount", value: disputeAmount ? `₹${disputeAmount}` : "Not specified" },
+      { label: "Registered On", value: createdAt },
+    ],
+    highlightBoxHtml: `
+      <div style="background:#fffbeb; border-left:4px solid #f59e0b; padding:14px; border-radius:4px; margin-bottom:20px;">
+        <p style="margin:0; font-size:13px; color:#92400e; line-height:1.5;">
+          <b>Action Required:</b> Please log in to your Respondent Portal to inspect the claim filing, upload supporting evidence, and submit your response.
+        </p>
+      </div>`,
+    ctaUrl: fileUrl || "https://odr.gokulanandachaudhurifoundation.com",
+    ctaLabel: fileUrl ? "View Filed Document" : "Open ODR Portal",
+  });
+}
+
+function partyNeutralAssignedTemplate({
+  recipientRole,
+  recipientName,
+  caseId,
+  disputeType,
+  disputeName,
+  claimantName,
+  oppositePartyName,
+  neutralName,
+  neutralEmail,
+  assignedDate,
+}) {
+  const isRespondent = recipientRole === "respondent";
+  return buildOdrEmailShell({
+    badgeText: isRespondent ? "NOTICE OF DISPUTE & MEDIATOR ASSIGNED" : "MEDIATOR ASSIGNED TO YOUR CASE",
+    badgeBg: isRespondent ? "#eff6ff" : "#ecfdf5",
+    badgeColor: isRespondent ? "#1d4ed8" : "#047857",
+    badgeBorder: isRespondent ? "#bfdbfe" : "#a7f3d0",
+    greetingName: recipientName || (isRespondent ? oppositePartyName : claimantName) || "Party",
+    introHtml: isRespondent
+      ? `Formal ODR proceedings have been initiated for <strong>${caseId}</strong> filed by <strong>${claimantName || "Claimant"}</strong>, and <strong>${neutralName || "an accredited Mediator"}</strong> has been appointed to conduct the resolution.`
+      : `An accredited Mediator (<strong>${neutralName || "Neutral"}</strong>) has been appointed to your dispute case <strong>${caseId}</strong>.`,
+    sectionTitle: "Assignment Details",
+    rows: [
+      { label: "Case Reference ID", value: caseId, mono: true },
+      { label: "Dispute Title", value: disputeName || "Dispute Case" },
+      { label: "Dispute Type", value: disputeType || "General" },
+      { label: "Claimant", value: claimantName || "N/A" },
+      { label: "Opposite Party", value: oppositePartyName || "N/A" },
+      { label: "Assigned Mediator", value: `${neutralName || "Mediator"}${neutralEmail ? ` (${neutralEmail})` : ""}` },
+      { label: "Assigned Date", value: assignedDate },
+    ],
+    ctaUrl: "https://odr.gokulanandachaudhurifoundation.com",
+    ctaLabel: "Open ODR Portal",
+  });
+}
+
+function evidenceUploadedTemplate({
+  recipientName,
+  caseId,
+  disputeName,
+  documentName,
+  uploadedByLabel,
+  statusLabel,
+  fileUrl,
+  uploadedAt,
+}) {
+  return buildOdrEmailShell({
+    badgeText: "NEW CASE EVIDENCE SUBMITTED",
+    badgeBg: "#eff6ff",
+    badgeColor: "#1d4ed8",
+    badgeBorder: "#bfdbfe",
+    greetingName: recipientName || "Participant",
+    introHtml: `A new document has been uploaded to the case record for <strong>${caseId}</strong> by <strong>${uploadedByLabel}</strong>.`,
+    sectionTitle: "Document Details",
+    rows: [
+      { label: "Case Reference ID", value: caseId, mono: true },
+      { label: "Dispute Title", value: disputeName || "Dispute Case" },
+      { label: "Document Name", value: documentName || "Submitted Document" },
+      { label: "Submitted By", value: uploadedByLabel },
+      { label: "Status", value: statusLabel || "Pending" },
+      { label: "Uploaded On", value: uploadedAt },
+    ],
+    ctaUrl: fileUrl || "https://odr.gokulanandachaudhurifoundation.com",
+    ctaLabel: fileUrl ? "View Submitted Document" : "Open ODR Portal",
+  });
+}
+
+function awardPublishedTemplate({
+  recipientName,
+  caseId,
+  caseTitle,
+  documentType,
+  fileName,
+  summary,
+  fileUrl,
+  publishedAt,
+}) {
+  return buildOdrEmailShell({
+    headerBg: "linear-gradient(135deg, #065f46 0%, #047857 100%)",
+    badgeText: "FINAL ORDER / AWARD PUBLISHED",
+    badgeBg: "#ecfdf5",
+    badgeColor: "#047857",
+    badgeBorder: "#a7f3d0",
+    greetingName: recipientName || "Party",
+    introHtml: `The presiding Mediator/Arbitrator has formally published a <strong>${documentType || "Final Order / Award"}</strong> for case <strong>${caseId}</strong>.`,
+    sectionTitle: "Award / Order Summary",
+    rows: [
+      { label: "Case Reference ID", value: caseId, mono: true },
+      { label: "Case Title", value: caseTitle || "Dispute Proceeding" },
+      { label: "Document Type", value: documentType || "Final Award" },
+      { label: "Document File", value: fileName || "Award Document" },
+      { label: "Summary", value: summary || "" },
+      { label: "Published On", value: publishedAt },
+    ],
+    ctaUrl: fileUrl || "https://odr.gokulanandachaudhurifoundation.com",
+    ctaLabel: fileUrl ? "View Published Award / Order" : "Open ODR Portal",
+    ctaColor: "#047857",
+  });
+}
+
 module.exports = {
   assignNeutralTemplate,
   disputeFilerAcknowledgmentTemplate,
   adminDisputeAlertTemplate,
+  disputeNoticeRespondentTemplate,
+  partyNeutralAssignedTemplate,
+  evidenceUploadedTemplate,
+  awardPublishedTemplate,
 };

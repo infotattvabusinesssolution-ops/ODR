@@ -46,7 +46,7 @@ async function notifyAllHearingParties(hearing, caseData = null) {
 
   const caseName = hearing.caseName || caseData?.DisputeName || "Dispute Hearing";
   const caseId = hearing.caseId || caseData?.caseId || "ODR-CASE";
-  const createdAt = hearing.createdAt || new Date();
+  const createdAt = hearing.date || hearing.createdAt || new Date();
   const hearingType = hearing.hearingType || "Joint Session Mediation";
   const duration = hearing.duration || "45";
   const time = hearing.time || "11:00 AM";
