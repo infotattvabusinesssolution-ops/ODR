@@ -1190,7 +1190,7 @@ export default function GoogleMeet() {
       conciliation: "Conciliation",
     };
 
-    const finalCaseId = formCaseId || `ODR-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const finalCaseId = (formCaseId || "").trim() || `ODR-2026-${Math.floor(100 + Math.random() * 900)}`;
 
     // Add to eventScheduleDays
     const newEvent = {
@@ -1212,12 +1212,13 @@ export default function GoogleMeet() {
       neutral: formNeutral || "Presiding Mediator",
     };
 
-    // Save to backend
+    // Save to backend and email video link to Claimant, Respondent & Mediator
     try {
       const userEmail = localStorage.getItem("userEmail") || "";
       await axiosInstance.post("/respondent/create-event", {
         caseId: finalCaseId,
-        caseName: formTitle,
+        caseName: formTitle.trim(),
+        Judge: formNeutral || "Presiding Mediator",
         type: typeLabels[formType] || "Hearing",
         date: `2026-11-${dayNum}`,
         time: formTime,
@@ -1230,6 +1231,7 @@ export default function GoogleMeet() {
       });
     } catch (apiErr) {
       console.warn("Backend hearing record note:", apiErr.message);
+      toast.warn("Hearing saved locally, but party email dispatch failed.");
     }
 
     setEventScheduleDays((prev) => ({

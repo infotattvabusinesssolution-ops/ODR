@@ -13,6 +13,7 @@ const transporter = require("../config/smtp");
 const mongoose = require("mongoose");
 const { storeUploadedFile } = require("../utils/fileStorage");
 const { sendEvidenceNotificationEmails } = require("../Service/emailService");
+const { notifyAllHearingParties } = require("../Service/hearingService");
 
 const RespondentRegister = async (req, res) => {
   const { role, name, email, password } = req.body;
@@ -536,29 +537,65 @@ const createRespondentEvent = async (req, res) => {
       respondentEmail,
       status,
       meetLink,
+      Judge,
+      judge,
     } = req.body;
 
-    const email = respondentEmail || req.user?.email || req.body.email || "";
+    const trimmedCaseId = String(caseId || "").trim();
+    const resolvedCaseName = String(caseName || title || "Dispute Hearing Session").trim();
+
+    let caseData = null;
+    if (trimmedCaseId || resolvedCaseName) {
+      caseData = await Case.findOne({
+        $or: [
+          ...(trimmedCaseId ? [{ caseId: trimmedCaseId }] : []),
+          ...(mongoose.isValidObjectId(trimmedCaseId) ? [{ _id: trimmedCaseId }] : []),
+          ...(caseName || title ? [{ DisputeName: resolvedCaseName }] : []),
+        ],
+      })
+        .populate("claimant", "name email phone")
+        .populate("respondent", "name email phone")
+        .populate("neutral", "name email phone");
+    }
+
+    const email = respondentEmail || caseData?.oppositePartyEmail || req.user?.email || req.body.email || "";
+    const judgeName = Judge || judge || caseData?.neutral?.name || "Presiding Mediator";
+    const resolvedMeetLink =
+      (meetLink && String(meetLink).trim()) ||
+      `${(process.env.FRONTEND_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "")}/meet/chamber-${trimmedCaseId || caseData?.caseId || "odr-room"}`;
 
     const newHearing = new hearingData({
-      caseId: caseId || "2024-45",
-      caseName: caseName || title || "Dispute Hearing Session",
+      caseId: trimmedCaseId || caseData?.caseId || "2024-45",
+      caseName: resolvedCaseName || caseData?.DisputeName || "Dispute Hearing Session",
+      Judge: judgeName,
+      judge: judgeName,
       hearingType: hearingType || type || "Hearing",
       date: date || new Date().toISOString().split("T")[0],
       time: time || "10:30 AM",
       duration: duration || "45 mins",
       location: location || "Virtual Courtroom",
-      notes: notes || description || "Scheduled by respondent",
+      notes: notes || description || "Scheduled session",
+      claimant: caseData?.claimant?._id || caseData?.claimant || null,
+      respondent: caseData?.respondent?._id || caseData?.respondent || null,
+      neutral: caseData?.neutral?._id || caseData?.neutral || null,
       respondentEmail: email,
+      respondentPhone: caseData?.oppositeMobile || caseData?.respondent?.phone || "",
       status: status || "Scheduled",
-      meetLink: meetLink || `${req.protocol}://${req.get("host")}/meet/chamber-${caseId || "odr-room"}`,
+      meetLink: resolvedMeetLink,
     });
 
     await newHearing.save();
 
+    // Notify Claimant, Respondent & Mediator with the Video Meeting Link
+    try {
+      await notifyAllHearingParties(newHearing, caseData);
+    } catch (notifyErr) {
+      console.warn("Notice: Video hearing notification dispatch warning:", notifyErr.message);
+    }
+
     res.status(201).json({
       success: true,
-      message: "Event scheduled successfully",
+      message: "Event scheduled successfully and video meeting link emailed to all parties",
       hearing: newHearing,
       data: newHearing,
     });

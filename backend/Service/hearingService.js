@@ -51,7 +51,8 @@ async function notifyAllHearingParties(hearing, caseData = null) {
   const duration = hearing.duration || "45";
   const time = hearing.time || "11:00 AM";
   const location = hearing.location || "Virtual Hearing Chamber";
-  const meetLink = hearing.meetLink || `https://utkalodr.com/chamber/${caseId}`;
+  const frontendBase = (process.env.FRONTEND_URL || "https://odr.gokulanandachaudhurifoundation.com").replace(/\/$/, "");
+  const meetLink = hearing.meetLink || `${frontendBase}/meet/chamber-${caseId}`;
 
   // 1. Determine Recipients
   const claimantEmail = caseData?.CustomersEmail || caseData?.claimant?.email || hearing.claimant?.email;
