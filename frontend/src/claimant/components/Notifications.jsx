@@ -134,19 +134,19 @@ export default function Notifications() {
           { email: userEmail }
         );
 
-        let data = response.data.data;
+        let data = Array.isArray(response.data?.data) ? response.data.data : [];
 
         // Get deleted IDs from localStorage
         const deletedIds =
           JSON.parse(localStorage.getItem("deletedNotifications")) || [];
 
         // Filter out notifications deleted by claimant/respondent
-        data = data.filter((n) => !deletedIds.includes(n._id));
+        data = data.filter((n) => n && !deletedIds.includes(n._id));
 
         setNotificationData(data);
         console.log("Filtered notifications:", data);
       } catch (err) {
-        console.log(err);
+        console.log("Get claimant notifications error:", err);
       }
     };
 
@@ -378,47 +378,87 @@ export default function Notifications() {
       {/* Notifications List */}
       {notificationData.length > 0 ? (
         <div>
-          {notificationData.map((notification) => (
-            <div
-              key={notification.id}
-              style={styles.notificationCard(notification.read)}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.12)";
-                e.currentTarget.style.transform = "translateY(-2px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = "0 2px 6px rgba(0,0,0,0.08)";
-                e.currentTarget.style.transform = "translateY(0)";
-              }}
-            >
-              <div style={styles.iconContainer}>
-                {getNotificationIcon(notification.type)}
-              </div>
-              <div style={styles.notificationContent}>
-                <div style={styles.notificationTitle(notification.read)}>
-                  Case Assignment
-                </div>
-                <div style={styles.notificationMessage}>
-                  {`You have been assigned to ${notification.CaseMessage.caseId}, ${notification.CaseMessage.title}`}
-                </div>
-                <div style={styles.notificationTime}>
-                  {getTimeAgo(notification.createdAt)}
-                </div>
-              </div>
-              <button
-                style={styles.deleteButton}
-                onClick={() => deleteNotification(notification._id)}
+          {notificationData.map((notification, index) => {
+            const details = parseNotificationDetails(notification);
+            return (
+              <div
+                key={notification?._id || `notif-${index}`}
+                style={styles.notificationCard(notification?.read)}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = "#ff5555";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.12)";
+                  e.currentTarget.style.transform = "translateY(-2px)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.color = "#999";
+                  e.currentTarget.style.boxShadow = "0 2px 6px rgba(0,0,0,0.08)";
+                  e.currentTarget.style.transform = "translateY(0)";
                 }}
               >
-                <X size={20} />
-              </button>
-            </div>
-          ))}
+                <div style={styles.iconContainer}>
+                  {getNotificationIcon(details.type || notification?.type)}
+                </div>
+                <div style={styles.notificationContent}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem", flexWrap: "wrap" }}>
+                    <span style={styles.notificationTitle(notification?.read)}>
+                      {details.title}
+                    </span>
+                    {details.badge && (
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: "600",
+                          padding: "2px 8px",
+                          borderRadius: "12px",
+                          backgroundColor: details.type === "hearing" ? "#fef3c7" : "#e0f2fe",
+                          color: details.type === "hearing" ? "#92400e" : "#0369a1",
+                        }}
+                      >
+                        {details.badge}
+                      </span>
+                    )}
+                  </div>
+                  <div style={styles.notificationMessage}>
+                    {details.message}
+                  </div>
+                  {details.link && (
+                    <div style={{ marginTop: "0.4rem", marginBottom: "0.25rem" }}>
+                      <a
+                        href={details.link}
+                        target={details.link.startsWith("http") ? "_blank" : "_self"}
+                        rel="noreferrer"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          color: "#ff9900",
+                          textDecoration: "underline",
+                        }}
+                      >
+                        {details.type === "hearing" ? "Join Video Meeting →" : "View Document →"}
+                      </a>
+                    </div>
+                  )}
+                  <div style={styles.notificationTime}>
+                    {getTimeAgo(notification?.createdAt || notification?.updatedAt)}
+                  </div>
+                </div>
+                <button
+                  style={styles.deleteButton}
+                  onClick={() => deleteNotification(notification?._id)}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = "#ff5555";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = "#999";
+                  }}
+                  title="Dismiss notification"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div style={styles.emptyState}>

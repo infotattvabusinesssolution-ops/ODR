@@ -2,19 +2,24 @@ import { useState, useEffect, useRef } from "react";
 import { MessageSquare, Send, Bot, ShieldAlert, ArrowLeft, RefreshCw, Sparkles, Loader2 } from "lucide-react";
 import axiosInstance, { getApiBaseUrl } from "../api/axiosConfig";
 
-const DEFAULT_JOINT_CHANNEL = {
-  _id: "joint-channel-thread",
-  name: "Joint Discussion",
+const JOINT_CHANNEL = {
+  _id: "joint-case-thread",
+  name: "Group Joint Discussion",
   role: "joint",
   isJoint: true,
 };
 
+const ALLOWED_3S_EMAILS = [
+  "santosh.baral@sjtsservices.com",
+  "sandeepdeore@yahoo.com",
+  "srittam.das@gmail.com",
+];
+
 export default function RealTimeChat({ role }) {
   const [cases, setCases] = useState([]);
   const [selectedCaseId, setSelectedCaseId] = useState("");
-  const [caseDetails, setCaseDetails] = useState(null);
   const [participants, setParticipants] = useState([]);
-  const [activeRecipient, setActiveRecipient] = useState(DEFAULT_JOINT_CHANNEL);
+  const [activeRecipient, setActiveRecipient] = useState(JOINT_CHANNEL);
   const [chatMessages, setChatMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -25,7 +30,47 @@ export default function RealTimeChat({ role }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [showSidebar, setShowSidebar] = useState(true);
 
-  const isJointActive = !activeRecipient || !!activeRecipient.isJoint || activeRecipient._id === "joint-channel-thread" || activeRecipient._id === "joint-3s-thread";
+  const isJointActive = !activeRecipient || !!activeRecipient.isJoint || activeRecipient._id === "joint-case-thread" || activeRecipient._id === "joint-3s-thread";
+
+  const userEmail = (localStorage.getItem("userEmail") || "").toLowerCase().trim();
+  const userRole = role || localStorage.getItem("userRole") || "claimant";
+  const is3SUser = ALLOWED_3S_EMAILS.includes(userEmail) || userRole === "admin";
+
+  const selectedCase = cases.find(
+    (c) => String(c.caseId || c._id || c.id) === String(selectedCaseId)
+  );
+
+  const is3SCase = Boolean(
+    selectedCase &&
+    (selectedCase.caseId === "CASE-2026-0021" ||
+     (selectedCase.DisputeName && selectedCase.DisputeName.includes("Santosh Baral")))
+  );
+
+  // Show 3S Joint Discussion ONLY if user logged in with authorized 3S email (or admin) AND viewing the 3S case
+  const show3SJoint = is3SCase && is3SUser;
+
+  // Extract individual participants from state or selectedCase
+  const claimantParticipant = participants.find((p) => p.role === "claimant");
+  const respondentParticipant = participants.find((p) => p.role === "respondent");
+  const neutralParticipant = participants.find((p) => p.role === "neutral");
+
+  const claimantName = claimantParticipant?.name || selectedCase?.CustomersName || "Claimant";
+  const respondentName = respondentParticipant?.name || selectedCase?.oppositePartyName || "Respondent";
+  const neutralName = neutralParticipant?.name || selectedCase?.neutral?.name || "Adv. Srittam Das";
+
+  const jointTitle = show3SJoint
+    ? "3S Joint Discussion"
+    : (selectedCase?.caseId ? `${selectedCase.caseId} Joint Discussion` : "Case Joint Discussion");
+
+  const jointSubtitle = show3SJoint
+    ? "Santosh · Sandeep · Srittam"
+    : `${claimantName.split(" ")[0]} · ${respondentName.split(" ")[0]} · ${neutralName.split(" ")[0]}`;
+
+  const jointHeaderDesc = show3SJoint
+    ? "Group Joint Session · Santosh Baral (Claimant) · Sandeep Deore (Respondent) · Adv. Srittam Das (Mediator)"
+    : `Group Joint Session · ${claimantName} (Claimant) · ${respondentName} (Respondent) · ${neutralName} (Mediator)`;
+
+  const jointBadge = show3SJoint ? "Active Joint Session (3S)" : "Active Joint Session";
 
   // Resize listener to update isMobile dynamically
   useEffect(() => {
@@ -112,17 +157,33 @@ export default function RealTimeChat({ role }) {
           }
         }
 
-        setCases(loadedCases);
-        if (loadedCases.length > 0) {
-          const firstId = loadedCases[0].caseId || loadedCases[0]._id || loadedCases[0].id;
+        if (loadedCases.length === 0) {
+          if (is3SUser) {
+            const demoCase = { caseId: "CASE-2026-0021", DisputeName: "Santosh Baral (SJTS Services Pvt Ltd) vs. Sandeep Dhansing Deore" };
+            loadedCases = [demoCase];
+          }
+        }
+
+        // Hide CASE-2026-0021 from unauthorized users so only 3S emails & admin can access it
+        const visibleCases = is3SUser
+          ? loadedCases
+          : loadedCases.filter((c) => c.caseId !== "CASE-2026-0021");
+
+        setCases(visibleCases);
+        if (visibleCases.length > 0) {
+          const firstId = visibleCases[0].caseId || visibleCases[0]._id || visibleCases[0].id;
           setSelectedCaseId(firstId);
-        } else {
-          setSelectedCaseId("");
         }
       } catch (err) {
         console.error("Failed to load user cases:", err);
-        setCases([]);
-        setSelectedCaseId("");
+        if (is3SUser) {
+          const demoCase = { caseId: "CASE-2026-0021", DisputeName: "Santosh Baral (SJTS Services Pvt Ltd) vs. Sandeep Dhansing Deore" };
+          setCases([demoCase]);
+          setSelectedCaseId("CASE-2026-0021");
+        } else {
+          setCases([]);
+          setSelectedCaseId("");
+        }
       } finally {
         setLoading(false);
       }
@@ -132,11 +193,7 @@ export default function RealTimeChat({ role }) {
 
   // Fetch participants when selectedCaseId changes
   useEffect(() => {
-    if (!selectedCaseId) {
-      setCaseDetails(null);
-      setParticipants([]);
-      return;
-    }
+    if (!selectedCaseId) return;
 
     if (selectedCaseId === "DEMO-CASE") {
       setParticipants([
@@ -151,7 +208,6 @@ export default function RealTimeChat({ role }) {
       try {
         const res = await axiosInstance.get(`/api/chat/participants/${selectedCaseId}`);
         if (res.data?.success) {
-          setCaseDetails(res.data.case || null);
           const list = res.data.participants || res.data.data || [];
           const filtered = list.filter(
             (p) => p && (!currentUserId || String(p._id) !== String(currentUserId))
@@ -159,13 +215,13 @@ export default function RealTimeChat({ role }) {
           setParticipants(filtered);
           // Preserve joint session selection or active recipient
           setActiveRecipient((prev) => {
-            if (!prev || prev._id === "joint-channel-thread" || prev._id === "joint-3s-thread" || prev.isJoint) {
-              return DEFAULT_JOINT_CHANNEL;
+            if (!prev || prev._id === "joint-3s-thread" || prev.isJoint) {
+              return JOINT_CHANNEL;
             }
             if (filtered.some((p) => String(p._id) === String(prev._id))) {
               return prev;
             }
-            return DEFAULT_JOINT_CHANNEL;
+            return JOINT_CHANNEL;
           });
         }
       } catch (err) {
@@ -317,40 +373,19 @@ export default function RealTimeChat({ role }) {
     }
   };
 
-  const selectedCaseObj = cases.find((c) => (c.caseId || c._id || c.id) === selectedCaseId) || null;
-  const is3SCase =
-    selectedCaseId === "CASE-2026-0021" ||
-    !!caseDetails?.is3SCase ||
-    (caseDetails?.claimant?.email?.toLowerCase() === "santosh.baral@sjtsservices.com" &&
-      caseDetails?.respondent?.email?.toLowerCase() === "sandeepdeore@yahoo.com") ||
-    (selectedCaseObj?.CustomersEmail?.toLowerCase() === "santosh.baral@sjtsservices.com" &&
-      selectedCaseObj?.oppositePartyEmail?.toLowerCase() === "sandeepdeore@yahoo.com");
-
-  const claimantObj = participants.find((p) => p.role === "claimant") || caseDetails?.claimant;
-  const respondentObj = participants.find((p) => p.role === "respondent") || caseDetails?.respondent;
-  const neutralObj = participants.find((p) => p.role === "neutral") || caseDetails?.neutral;
-
-  const claimantName = claimantObj?.name || (is3SCase ? "Santosh Baral" : (selectedCaseObj?.CustomersName || "Claimant"));
-  const respondentName = respondentObj?.name || (is3SCase ? "Sandeep Dhansing Deore" : (selectedCaseObj?.oppositePartyName || "Respondent"));
-  const neutralName = neutralObj?.name || "Adv. Srittam Das";
-
-  const jointTitle = is3SCase ? "3S Joint Discussion" : "Joint Discussion";
-  const jointSubtitle = is3SCase
-    ? "Santosh · Sandeep · Srittam"
-    : `${claimantName.split(" ")[0]} · ${respondentName.split(" ")[0]} · ${neutralName.split(" ")[0]}`;
-  const jointHeaderDesc = is3SCase
-    ? "Group Joint Session · Santosh (Claimant) · Sandeep (Respondent) · Adv. Srittam Das (Mediator)"
-    : `Group Joint Session · ${claimantName} (Claimant) · ${respondentName} (Respondent) · ${neutralName} (Mediator)`;
-  const jointBadge = is3SCase ? "Active Joint Session (3S)" : "Active Joint Session";
-
   // Helper to resolve sender display name
   const getSenderName = () => {
     const fromStorage = localStorage.getItem("userName") || localStorage.getItem("username") || localStorage.getItem("name");
     if (fromStorage && fromStorage !== "User" && fromStorage !== "null") return fromStorage;
-    if (role === "claimant") return claimantName;
-    if (role === "respondent") return respondentName;
-    if (role === "neutral") return neutralName;
-    return "Court Admin";
+    if (show3SJoint) {
+      if (role === "claimant") return "Santosh Baral";
+      if (role === "respondent") return "Sandeep Dhansing Deore";
+      if (role === "neutral") return "Adv. Srittam Das";
+    }
+    if (role === "claimant") return claimantName || "Claimant";
+    if (role === "respondent") return respondentName || "Respondent";
+    if (role === "neutral") return neutralName || "Mediator";
+    return "Admin";
   };
 
   // Send a message
@@ -554,7 +589,7 @@ export default function RealTimeChat({ role }) {
               transition: "all 0.2s"
             }}
             onClick={() => {
-              setActiveRecipient(DEFAULT_JOINT_CHANNEL);
+              setActiveRecipient(JOINT_CHANNEL);
               if (isMobile) setShowSidebar(false);
             }}
           >
