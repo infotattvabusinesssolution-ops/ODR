@@ -140,6 +140,21 @@ io.on("connection", (socket) => {
 
       // Check if this is a Joint Session Channel
       if (isJoint || isJointThread || userBId === "joint" || userBId === "all") {
+        // Enforce 3S Joint access restriction for CASE-2026-0021
+        if (canonicalCaseId === "CASE-2026-0021") {
+          const allowed3S = ["santosh.baral@sjtsservices.com", "sandeepdeore@yahoo.com", "srittam.das@gmail.com"];
+          let uDoc = null;
+          if (userAId && mongoose.Types.ObjectId.isValid(userAId)) {
+            uDoc = await User.findById(userAId).lean();
+          } else if (userAId) {
+            uDoc = await User.findOne({ email: userAId }).lean();
+          }
+          if (uDoc && uDoc.role !== "admin" && !allowed3S.includes(uDoc.email?.toLowerCase())) {
+            console.warn(`Blocked unauthorized join_room for 3S Joint chat: ${uDoc.email}`);
+            return;
+          }
+        }
+
         const jointRoom = `room_joint_${canonicalCaseId}`;
         socket.join(jointRoom);
         if (caseRecord && caseRecord.caseId && caseRecord._id) {
@@ -197,6 +212,20 @@ io.on("connection", (socket) => {
       const isJointMsg = isJoint || isJointThread || receiverRole === "all" || receiverRole === "joint" || receiverId === "joint";
 
       if (isJointMsg) {
+        if (canonicalCaseId === "CASE-2026-0021") {
+          const allowed3S = ["santosh.baral@sjtsservices.com", "sandeepdeore@yahoo.com", "srittam.das@gmail.com"];
+          let uDoc = null;
+          if (validSenderId && mongoose.Types.ObjectId.isValid(validSenderId)) {
+            uDoc = await User.findById(validSenderId).lean();
+          } else if (validSenderId) {
+            uDoc = await User.findOne({ email: validSenderId }).lean();
+          }
+          if (uDoc && uDoc.role !== "admin" && !allowed3S.includes(uDoc.email?.toLowerCase())) {
+            console.warn(`Blocked unauthorized send_message for 3S Joint chat: ${uDoc.email}`);
+            return;
+          }
+        }
+
         const savedMsg = await ChatMessage.create({
           caseId: canonicalCaseId,
           senderId: validSenderId,

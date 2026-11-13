@@ -9,26 +9,38 @@ const isUserAllowedForCase = (caseItem, user) => {
 
   if (user.role === "admin") return true;
 
-  if (
-    user.role === "claimant" &&
-    (caseItem.claimant?.toString() === user.id?.toString() ||
-     caseItem.CustomersEmail?.toLowerCase() === user.email?.toLowerCase())
-  ) {
-    return true;
+  const userEmail = (user.email || "").toLowerCase().trim();
+  const userId = (user.id || user._id || "").toString();
+
+  // Strict check for CASE-2026-0021 (3S Joint Discussion: Santosh Baral, Sandeep Deore, Adv. Srittam Das)
+  if (caseItem.caseId === "CASE-2026-0021") {
+    const allowed3SEmails = [
+      "santosh.baral@sjtsservices.com",
+      "sandeepdeore@yahoo.com",
+      "srittam.das@gmail.com",
+    ];
+    if (allowed3SEmails.includes(userEmail)) return true;
+    if (caseItem.claimant && (caseItem.claimant.toString() === userId || caseItem.claimant._id?.toString() === userId)) return true;
+    if (caseItem.respondent && (caseItem.respondent.toString() === userId || caseItem.respondent._id?.toString() === userId)) return true;
+    if (caseItem.neutral && (caseItem.neutral.toString() === userId || caseItem.neutral._id?.toString() === userId)) return true;
+    return false;
   }
 
-  if (
-    user.role === "respondent" &&
-    (caseItem.respondent?.toString() === user.id?.toString() ||
-     caseItem.oppositePartyEmail?.toLowerCase() === user.email?.toLowerCase())
-  ) {
-    return true;
+  if (user.role === "claimant") {
+    if (caseItem.claimant && (caseItem.claimant.toString() === userId || caseItem.claimant._id?.toString() === userId)) return true;
+    if (caseItem.CustomersEmail && caseItem.CustomersEmail.toLowerCase().trim() === userEmail) return true;
+  }
+
+  if (user.role === "respondent") {
+    if (caseItem.respondent && (caseItem.respondent.toString() === userId || caseItem.respondent._id?.toString() === userId)) return true;
+    if (caseItem.oppositePartyEmail && caseItem.oppositePartyEmail.toLowerCase().trim() === userEmail) return true;
   }
 
   if (user.role === "neutral") {
-    if (caseItem.neutral?.toString() === user.id?.toString()) return true;
-    if (!caseItem.neutral) return true;
-    return true; // Neutral mediator has mediation access
+    if (caseItem.neutral && (caseItem.neutral.toString() === userId || caseItem.neutral._id?.toString() === userId)) return true;
+    if (caseItem.neutral && caseItem.neutral.email && caseItem.neutral.email.toLowerCase().trim() === userEmail) return true;
+    if (userEmail && caseItem.CustomersEmail && caseItem.CustomersEmail.toLowerCase().trim() === userEmail) return true;
+    if (userEmail === "srittam.das@gmail.com" && caseItem.neutral) return true;
   }
 
   return false;
@@ -89,15 +101,25 @@ const getUserCases = async (user) => {
   }
 
   if (user.role === "neutral") {
-    let cases = await Case.find({ neutral: user.id }).select(
-      "caseId DisputeName DisputeType status CustomersName CustomersEmail oppositePartyName oppositePartyEmail neutral createdAt"
-    ).populate("neutral", "name email").sort({ createdAt: -1 }).lean();
-    if (!cases || cases.length === 0) {
-      cases = await Case.find({}).select(
-        "caseId DisputeName DisputeType status CustomersName CustomersEmail oppositePartyName oppositePartyEmail neutral createdAt"
-      ).populate("neutral", "name email").sort({ createdAt: -1 }).lean();
+    const userId = user.id || user._id;
+    const userEmail = (user.email || "").trim().toLowerCase();
+    const orConditions = [];
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      orConditions.push({ neutral: userId });
     }
-    return cases;
+    const NeutralModel = require("../models/neutral");
+    const nDocs = await NeutralModel.find({ email: new RegExp(`^${userEmail}$`, "i") }).select("_id").lean();
+    if (nDocs.length > 0) {
+      orConditions.push({ neutral: { $in: nDocs.map((d) => d._id) } });
+    }
+
+    let cases = await Case.find(orConditions.length > 0 ? { $or: orConditions } : { neutral: userId })
+      .select("caseId DisputeName DisputeType status CustomersName CustomersEmail oppositePartyName oppositePartyEmail neutral createdAt")
+      .populate("neutral", "name email")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return cases || [];
   }
 
   return [];
@@ -215,7 +237,12 @@ const getChatHistory = async (req, res) => {
 
     const caseRecord = await Case.findOne(
       mongoose.Types.ObjectId.isValid(caseId) ? { $or: [{ _id: caseId }, { caseId }] } : { caseId }
-    );
+    ).populate("neutral", "name email");
+
+    if (!caseRecord || !isUserAllowedForCase(caseRecord, req.user)) {
+      return res.status(403).json({ success: false, message: "Unauthorized: You are not a participant in this case discussion." });
+    }
+
     const caseIdVariants = caseRecord
       ? [String(caseRecord.caseId), String(caseRecord._id)].filter(Boolean)
       : [String(caseId)];
@@ -244,7 +271,12 @@ const getJointChatHistory = async (req, res) => {
 
     const caseRecord = await Case.findOne(
       mongoose.Types.ObjectId.isValid(caseId) ? { $or: [{ _id: caseId }, { caseId }] } : { caseId }
-    );
+    ).populate("neutral", "name email");
+
+    if (!caseRecord || !isUserAllowedForCase(caseRecord, req.user)) {
+      return res.status(403).json({ success: false, message: "Unauthorized: You are not a participant in this case discussion." });
+    }
+
     const caseIdVariants = caseRecord
       ? [String(caseRecord.caseId), String(caseRecord._id)].filter(Boolean)
       : [String(caseId)];
@@ -286,6 +318,10 @@ const getCaseParticipants = async (req, res) => {
 
     if (!caseData) {
       return res.status(404).json({ success: false, message: "Case not found" });
+    }
+
+    if (!isUserAllowedForCase(caseData, req.user)) {
+      return res.status(403).json({ success: false, message: "Unauthorized: You are not a participant in this case." });
     }
 
     let claimantUser = caseData.claimant;
@@ -332,16 +368,26 @@ const getCaseParticipants = async (req, res) => {
 
     let neutralUser = null;
     if (caseData.neutral) {
-      const NeutralModel = require("../models/neutral");
-      const foundNeutral = await NeutralModel.findById(caseData.neutral).select("name email user");
-      if (foundNeutral) {
+      if (typeof caseData.neutral === "object" && caseData.neutral.name && caseData.neutral.email) {
         neutralUser = {
-          _id: foundNeutral._id,
-          name: foundNeutral.name,
-          email: foundNeutral.email,
+          _id: caseData.neutral._id,
+          name: caseData.neutral.name,
+          email: caseData.neutral.email,
           role: "neutral",
-          phone: ""
+          phone: caseData.neutral.phone || ""
         };
+      } else {
+        const NeutralModel = require("../models/neutral");
+        const foundNeutral = await NeutralModel.findById(caseData.neutral).select("name email user");
+        if (foundNeutral) {
+          neutralUser = {
+            _id: foundNeutral._id,
+            name: foundNeutral.name,
+            email: foundNeutral.email,
+            role: "neutral",
+            phone: ""
+          };
+        }
       }
     }
     if (!neutralUser) {
@@ -367,11 +413,20 @@ const getCaseParticipants = async (req, res) => {
       }
     });
 
+    const is3SCase =
+      caseData.caseId === "CASE-2026-0021" ||
+      (claimantUser?.email?.toLowerCase() === "santosh.baral@sjtsservices.com" &&
+        respondentUser?.email?.toLowerCase() === "sandeepdeore@yahoo.com");
+
     res.status(200).json({
       success: true,
       case: {
         caseId: caseData.caseId || String(caseData._id),
         DisputeName: caseData.DisputeName || "Dispute Case",
+        claimant: claimantUser,
+        respondent: respondentUser,
+        neutral: neutralUser,
+        is3SCase: is3SCase,
       },
       data: participants,
       participants: participants,

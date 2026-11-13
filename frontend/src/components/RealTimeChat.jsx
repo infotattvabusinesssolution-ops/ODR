@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { MessageSquare, Send, Bot, ShieldAlert, ArrowLeft, RefreshCw, Sparkles, Loader2 } from "lucide-react";
 import axiosInstance, { getApiBaseUrl } from "../api/axiosConfig";
 
-const JOINT_CHANNEL = {
-  _id: "joint-3s-thread",
-  name: "3S Joint Discussion (Santosh, Sandeep & Srittam)",
+const DEFAULT_JOINT_CHANNEL = {
+  _id: "joint-channel-thread",
+  name: "Joint Discussion",
   role: "joint",
   isJoint: true,
 };
@@ -12,8 +12,9 @@ const JOINT_CHANNEL = {
 export default function RealTimeChat({ role }) {
   const [cases, setCases] = useState([]);
   const [selectedCaseId, setSelectedCaseId] = useState("");
+  const [caseDetails, setCaseDetails] = useState(null);
   const [participants, setParticipants] = useState([]);
-  const [activeRecipient, setActiveRecipient] = useState(JOINT_CHANNEL);
+  const [activeRecipient, setActiveRecipient] = useState(DEFAULT_JOINT_CHANNEL);
   const [chatMessages, setChatMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,7 +25,7 @@ export default function RealTimeChat({ role }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [showSidebar, setShowSidebar] = useState(true);
 
-  const isJointActive = !activeRecipient || !!activeRecipient.isJoint || activeRecipient._id === "joint-3s-thread";
+  const isJointActive = !activeRecipient || !!activeRecipient.isJoint || activeRecipient._id === "joint-channel-thread" || activeRecipient._id === "joint-3s-thread";
 
   // Resize listener to update isMobile dynamically
   useEffect(() => {
@@ -111,19 +112,17 @@ export default function RealTimeChat({ role }) {
           }
         }
 
-        if (loadedCases.length === 0) {
-          const demoCase = { caseId: "CASE-2026-0021", DisputeName: "Santosh Baral (SJTS Services Pvt Ltd) vs. Sandeep Dhansing Deore" };
-          loadedCases = [demoCase];
-        }
-
         setCases(loadedCases);
-        const firstId = loadedCases[0].caseId || loadedCases[0]._id || loadedCases[0].id;
-        setSelectedCaseId(firstId);
+        if (loadedCases.length > 0) {
+          const firstId = loadedCases[0].caseId || loadedCases[0]._id || loadedCases[0].id;
+          setSelectedCaseId(firstId);
+        } else {
+          setSelectedCaseId("");
+        }
       } catch (err) {
         console.error("Failed to load user cases:", err);
-        const demoCase = { caseId: "CASE-2026-0021", DisputeName: "Santosh Baral (SJTS Services Pvt Ltd) vs. Sandeep Dhansing Deore" };
-        setCases([demoCase]);
-        setSelectedCaseId("CASE-2026-0021");
+        setCases([]);
+        setSelectedCaseId("");
       } finally {
         setLoading(false);
       }
@@ -133,7 +132,11 @@ export default function RealTimeChat({ role }) {
 
   // Fetch participants when selectedCaseId changes
   useEffect(() => {
-    if (!selectedCaseId) return;
+    if (!selectedCaseId) {
+      setCaseDetails(null);
+      setParticipants([]);
+      return;
+    }
 
     if (selectedCaseId === "DEMO-CASE") {
       setParticipants([
@@ -148,6 +151,7 @@ export default function RealTimeChat({ role }) {
       try {
         const res = await axiosInstance.get(`/api/chat/participants/${selectedCaseId}`);
         if (res.data?.success) {
+          setCaseDetails(res.data.case || null);
           const list = res.data.participants || res.data.data || [];
           const filtered = list.filter(
             (p) => p && (!currentUserId || String(p._id) !== String(currentUserId))
@@ -155,13 +159,13 @@ export default function RealTimeChat({ role }) {
           setParticipants(filtered);
           // Preserve joint session selection or active recipient
           setActiveRecipient((prev) => {
-            if (!prev || prev._id === "joint-3s-thread" || prev.isJoint) {
-              return JOINT_CHANNEL;
+            if (!prev || prev._id === "joint-channel-thread" || prev._id === "joint-3s-thread" || prev.isJoint) {
+              return DEFAULT_JOINT_CHANNEL;
             }
             if (filtered.some((p) => String(p._id) === String(prev._id))) {
               return prev;
             }
-            return JOINT_CHANNEL;
+            return DEFAULT_JOINT_CHANNEL;
           });
         }
       } catch (err) {
@@ -313,14 +317,40 @@ export default function RealTimeChat({ role }) {
     }
   };
 
+  const selectedCaseObj = cases.find((c) => (c.caseId || c._id || c.id) === selectedCaseId) || null;
+  const is3SCase =
+    selectedCaseId === "CASE-2026-0021" ||
+    !!caseDetails?.is3SCase ||
+    (caseDetails?.claimant?.email?.toLowerCase() === "santosh.baral@sjtsservices.com" &&
+      caseDetails?.respondent?.email?.toLowerCase() === "sandeepdeore@yahoo.com") ||
+    (selectedCaseObj?.CustomersEmail?.toLowerCase() === "santosh.baral@sjtsservices.com" &&
+      selectedCaseObj?.oppositePartyEmail?.toLowerCase() === "sandeepdeore@yahoo.com");
+
+  const claimantObj = participants.find((p) => p.role === "claimant") || caseDetails?.claimant;
+  const respondentObj = participants.find((p) => p.role === "respondent") || caseDetails?.respondent;
+  const neutralObj = participants.find((p) => p.role === "neutral") || caseDetails?.neutral;
+
+  const claimantName = claimantObj?.name || (is3SCase ? "Santosh Baral" : (selectedCaseObj?.CustomersName || "Claimant"));
+  const respondentName = respondentObj?.name || (is3SCase ? "Sandeep Dhansing Deore" : (selectedCaseObj?.oppositePartyName || "Respondent"));
+  const neutralName = neutralObj?.name || "Adv. Srittam Das";
+
+  const jointTitle = is3SCase ? "3S Joint Discussion" : "Joint Discussion";
+  const jointSubtitle = is3SCase
+    ? "Santosh · Sandeep · Srittam"
+    : `${claimantName.split(" ")[0]} · ${respondentName.split(" ")[0]} · ${neutralName.split(" ")[0]}`;
+  const jointHeaderDesc = is3SCase
+    ? "Group Joint Session · Santosh (Claimant) · Sandeep (Respondent) · Adv. Srittam Das (Mediator)"
+    : `Group Joint Session · ${claimantName} (Claimant) · ${respondentName} (Respondent) · ${neutralName} (Mediator)`;
+  const jointBadge = is3SCase ? "Active Joint Session (3S)" : "Active Joint Session";
+
   // Helper to resolve sender display name
   const getSenderName = () => {
     const fromStorage = localStorage.getItem("userName") || localStorage.getItem("username") || localStorage.getItem("name");
     if (fromStorage && fromStorage !== "User" && fromStorage !== "null") return fromStorage;
-    if (role === "claimant") return "Sandeep Dhansing Deore";
-    if (role === "respondent") return "Santosh Baral";
-    if (role === "neutral") return "Adv. Srittam Das";
-    return "Admin";
+    if (role === "claimant") return claimantName;
+    if (role === "respondent") return respondentName;
+    if (role === "neutral") return neutralName;
+    return "Court Admin";
   };
 
   // Send a message
@@ -524,17 +554,17 @@ export default function RealTimeChat({ role }) {
               transition: "all 0.2s"
             }}
             onClick={() => {
-              setActiveRecipient(JOINT_CHANNEL);
+              setActiveRecipient(DEFAULT_JOINT_CHANNEL);
               if (isMobile) setShowSidebar(false);
             }}
           >
             <div style={{ ...styles.avatar("joint"), fontSize: "20px", backgroundColor: "#f59e0b" }}>🏛️</div>
             <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
-              <span style={{ fontWeight: "700", fontSize: "13px", color: isJointActive ? "#92400e" : "#1e293b" }}>3S Joint Discussion</span>
+              <span style={{ fontWeight: "700", fontSize: "13px", color: isJointActive ? "#92400e" : "#1e293b" }}>{jointTitle}</span>
               <span style={{ fontSize: "11px", color: isJointActive ? "#b45309" : "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                Santosh · Sandeep · Srittam
+                {jointSubtitle}
               </span>
-              <span style={{ ...styles.badge("joint"), marginTop: "4px" }}>Active Joint Session</span>
+              <span style={{ ...styles.badge("joint"), marginTop: "4px" }}>{jointBadge}</span>
             </div>
           </div>
 
@@ -589,17 +619,17 @@ export default function RealTimeChat({ role }) {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   <span style={{ fontWeight: "700", fontSize: "16px", color: "#1e293b" }}>
-                    {isJointActive ? "3S Joint Discussion" : activeRecipient.name}
+                    {isJointActive ? jointTitle : activeRecipient.name}
                   </span>
                   <span style={{ fontSize: "12px", color: isJointActive ? "#b45309" : "#64748b", fontWeight: isJointActive ? "600" : "400" }}>
                     {isJointActive
-                      ? "Group Joint Session · Sandeep (Claimant) · Santosh (Respondent) · Adv. Srittam Das (Mediator)"
+                      ? jointHeaderDesc
                       : `Direct 1-on-1 messaging conversation with ${getRoleLabel(activeRecipient.role)}`}
                   </span>
                 </div>
               </div>
               <span style={styles.badge(isJointActive ? "joint" : activeRecipient.role)}>
-                {isJointActive ? "Active Joint Session (3S)" : getRoleLabel(activeRecipient.role)}
+                {isJointActive ? jointBadge : getRoleLabel(activeRecipient.role)}
               </span>
             </div>
 
@@ -609,7 +639,7 @@ export default function RealTimeChat({ role }) {
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "#64748b" }}>
                   <MessageSquare size={48} style={{ opacity: 0.3, marginBottom: "12px" }} />
                   <p style={{ fontSize: "14px", fontWeight: "500" }}>
-                    Start of messaging history in {isJointActive ? "3S Joint Discussion" : activeRecipient.name}.
+                    Start of messaging history in {isJointActive ? jointTitle : activeRecipient.name}.
                   </p>
                   <p style={{ fontSize: "12px", color: "#94a3b8", marginTop: "4px" }}>
                     Send a message below to begin discussion.
@@ -762,7 +792,7 @@ export default function RealTimeChat({ role }) {
                   type="text"
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
-                  placeholder={`Message in ${isJointActive ? "3S Joint Discussion" : activeRecipient.name}...`}
+                  placeholder={`Message in ${isJointActive ? jointTitle : activeRecipient.name}...`}
                   style={{ width: "100%", padding: "12px 48px 12px 16px", borderRadius: "10px", border: "1px solid #cbd5e1", outline: "none", fontSize: "14px" }}
                 />
                 <button
