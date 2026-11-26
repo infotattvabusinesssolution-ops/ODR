@@ -39,12 +39,18 @@ function Navbar() {
 
   const changeLanguage = (e, langCode) => {
     e.preventDefault();
+    const domains = [
+      window.location.hostname,
+      '.' + window.location.hostname,
+      'utkalodr.com',
+      '.utkalodr.com'
+    ];
+    domains.forEach(d => {
+      document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${d};`;
+    });
     document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-    document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=.${window.location.hostname}; path=/;`;
-    if (langCode === 'en') {
-      document.cookie = `googtrans=/en/en; path=/;`;
-      document.cookie = `googtrans=/en/en; domain=.${window.location.hostname}; path=/;`;
-    } else {
+    
+    if (langCode !== 'en' && ['or', 'hi'].includes(langCode)) {
       document.cookie = `googtrans=/en/${langCode}; path=/;`;
       document.cookie = `googtrans=/en/${langCode}; domain=.${window.location.hostname}; path=/;`;
     }

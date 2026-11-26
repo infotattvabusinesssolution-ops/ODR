@@ -106,28 +106,53 @@
     </style>
     <script>
       (function() {
+        var ALLOWED = ['en', 'or', 'hi', 'bn', 'te'];
         var urlParams = new URLSearchParams(window.location.search);
         var langParam = urlParams.get('lang');
         if (langParam) {
           var domain = window.location.hostname;
-          if (langParam === 'en') {
+          if (langParam === 'en' || !ALLOWED.includes(langParam)) {
              document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=' + domain;
+             document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.' + domain;
              document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-             document.cookie = 'googtrans=/en/en; path=/; domain=' + domain;
-             document.cookie = 'googtrans=/en/en; path=/;';
+             try { localStorage.removeItem('odrLangCode'); } catch(e) {}
           } else {
              var cookieVal = '/en/' + langParam;
              document.cookie = 'googtrans=' + cookieVal + '; path=/; domain=' + domain;
+             document.cookie = 'googtrans=' + cookieVal + '; path=/; domain=.' + domain;
              document.cookie = 'googtrans=' + cookieVal + '; path=/;';
+             try { localStorage.setItem('odrLangCode', langParam); } catch(e) {}
           }
           urlParams.delete('lang');
           var newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '') + window.location.hash;
           window.history.replaceState({}, '', newUrl);
         }
 
+        // Clean up invalid or corrupted googtrans cookies (e.g. /en/en or /en/ab) on initial load
+        var matches = document.cookie.match(/(?:^|;)\s*googtrans=([^;]*)/g);
+        if (matches && matches.length > 0) {
+          var lastMatch = matches[matches.length - 1];
+          var val = lastMatch.split('=')[1];
+          if (val) {
+            var parts = decodeURIComponent(val).split('/');
+            var targetLang = parts[parts.length - 1];
+            if (targetLang && (!ALLOWED.includes(targetLang) || targetLang === 'en')) {
+              var domain = window.location.hostname;
+              document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=' + domain;
+              document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.' + domain;
+              document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=utkalodr.com';
+              document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.utkalodr.com';
+              document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            }
+          }
+        }
+
         document.addEventListener('click', function(e) {
           var link = e.target.closest('a');
           if (link && link.href) {
+            if (link.classList.contains('back-home') || link.getAttribute('data-no-lang') === 'true') {
+              return;
+            }
             try {
               var targetUrl = new URL(link.href);
               var currentUrl = new URL(window.location.href);
@@ -136,7 +161,7 @@
                 
                 var currentLang = 'en';
                 var combo = document.querySelector('.goog-te-combo');
-                if (combo && combo.value) {
+                if (combo && combo.value && ALLOWED.includes(combo.value)) {
                   currentLang = combo.value;
                 } else {
                   var matches = document.cookie.match(/(?:^|;)\s*googtrans=([^;]*)/g);
@@ -146,13 +171,17 @@
                     if (val) {
                       var parts = decodeURIComponent(val).split('/');
                       var langCookie = parts[parts.length - 1];
-                      if (langCookie && langCookie !== 'auto') {
+                      if (langCookie && ALLOWED.includes(langCookie)) {
                         currentLang = langCookie;
                       }
                     }
                   }
                 }
-                targetUrl.searchParams.set('lang', currentLang);
+                if (currentLang !== 'en') {
+                  targetUrl.searchParams.set('lang', currentLang);
+                } else {
+                  targetUrl.searchParams.delete('lang');
+                }
                 link.href = targetUrl.toString();
               }
             } catch(err) {}

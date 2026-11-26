@@ -22,6 +22,7 @@ import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import ModalComponent from "./Modal/ModalComponent";
 import axiosInstance from "../../api/axiosConfig";
+import { clearTranslationCookies, applyLanguage } from "../../utils/translationUtils";
 import { useAuth } from "../../context/AuthContext";
 
 export default function Profile() {
@@ -125,17 +126,9 @@ export default function Profile() {
     localStorage.setItem("appLanguage", lang.name);
     
     if (lang.code === "en") {
-      document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-      document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=" + window.location.hostname + "; path=/;";
+      clearTranslationCookies();
     } else {
-      document.cookie = `googtrans=/en/${lang.code}; path=/`;
-      document.cookie = `googtrans=/en/${lang.code}; domain=${window.location.hostname}; path=/`;
-    }
-    
-    const translateSelect = document.querySelector(".goog-te-combo");
-    if (translateSelect) {
-      translateSelect.value = lang.code;
-      translateSelect.dispatchEvent(new Event("change"));
+      applyLanguage(lang.code);
     }
     
     toast.success(`Language changed to ${lang.name} (${lang.native})`);

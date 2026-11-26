@@ -6,6 +6,7 @@ import { authApi } from "./api/authApi";
 import axiosInstance from "./api/axiosConfig";
 import { useAuth } from "./context/AuthContext";
 import { auth, googleProvider, signInWithPopup, RecaptchaVerifier, signInWithPhoneNumber } from "./config/firebase";
+import { clearTranslationCookies } from "./utils/translationUtils";
 import "./Login.css";
 
 const getLandingPageUrl = () => {
@@ -356,7 +357,15 @@ export default function Login({ getRole }) {
         <div className="login-left">
           {/* Top: Logo & Back Button */}
           <div className="left-top">
-            <a href={getLandingPageUrl()} className="back-home" title="Go to Utkal ODR Landing Page">
+            <a
+              href={getLandingPageUrl()}
+              className="back-home"
+              data-no-lang="true"
+              title="Go to Utkal ODR Landing Page"
+              onClick={() => {
+                clearTranslationCookies();
+              }}
+            >
               <ArrowLeft size={16} />
               <span>Back to Landing Page</span>
             </a>
@@ -381,7 +390,7 @@ export default function Login({ getRole }) {
           {/* Middle: Hero Text */}
           <div className="left-middle">
             <h2 className="hero-title" style={{ fontSize: '44px', lineHeight: '1.2' }}>
-              Dispute Resolution at Less Cost and Time 
+              Dispute Resolution at Less Cost and Time
             </h2>
             <p className="hero-subtitle" style={{ fontSize: '26px', lineHeight: '1.6', maxWidth: '600px', marginTop: '24px', color: '#ffffff', opacity: '1', fontWeight: '500' }}>
               Online Mediation Platform

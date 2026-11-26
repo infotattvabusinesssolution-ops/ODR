@@ -18,6 +18,7 @@ import {
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from 'react-toastify';
+import { clearTranslationCookies } from "../utils/translationUtils";
 import "../components/Navbar.css";
 import { API_BASE_URL } from "../api/axiosConfig";
 
@@ -137,6 +138,7 @@ export default function Navbar({ isOpen, setIsOpen }) {
     localStorage.removeItem("userEmail");
     localStorage.removeItem("userRole");
     localStorage.removeItem("username");
+    clearTranslationCookies();
     navigate("/login");
   };
 

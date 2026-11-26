@@ -25,6 +25,7 @@ import { toast } from "react-toastify";
 import axiosInstance from "../../api/axiosConfig";
 import EditProfileForm from "./Modal/EditProfile";
 import ModalComponent from "./Modal/ModalComponent";
+import { clearTranslationCookies, applyLanguage } from "../../utils/translationUtils";
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -158,20 +159,10 @@ export default function Profile() {
     setLanguage(lang.name);
     localStorage.setItem("appLanguage", lang.name);
     
-    // Set Google Translate cookie as a fallback
     if (lang.code === "en") {
-      document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-      document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=" + window.location.hostname + "; path=/;";
+      clearTranslationCookies();
     } else {
-      document.cookie = `googtrans=/en/${lang.code}; path=/`;
-      document.cookie = `googtrans=/en/${lang.code}; domain=${window.location.hostname}; path=/`;
-    }
-    
-    // Programmatically trigger Google Translate without reload
-    const translateSelect = document.querySelector(".goog-te-combo");
-    if (translateSelect) {
-      translateSelect.value = lang.code;
-      translateSelect.dispatchEvent(new Event("change"));
+      applyLanguage(lang.code);
     }
     
     toast.success(`Language changed to ${lang.name} (${lang.native})`);

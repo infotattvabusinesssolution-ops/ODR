@@ -12,6 +12,7 @@ import Register from "./Register";
 import LegalAiHub from "./components/LegalAiHub";
 import GoogleMeet from "./components/GoogleMeet/GoogleMeet";
 import { Agentation } from "agentation";
+import { ALLOWED_LANGUAGES, clearTranslationCookies } from "./utils/translationUtils";
 
 
 
@@ -36,12 +37,17 @@ function App() {
     let lang = urlParams.get('lang');
     
     if (lang) {
-      localStorage.setItem('odrLangCode', lang);
+      if (lang === 'en' || !ALLOWED_LANGUAGES.includes(lang)) {
+        clearTranslationCookies();
+        lang = null;
+      } else {
+        localStorage.setItem('odrLangCode', lang);
+      }
     } else {
       lang = localStorage.getItem('odrLangCode');
     }
 
-    if (lang) {
+    if (lang && lang !== 'en' && ALLOWED_LANGUAGES.includes(lang)) {
       const setGoogleLang = () => {
         const selectField = document.querySelector(".goog-te-combo");
         // Ensure the select field has options loaded by Google Translate
@@ -56,6 +62,8 @@ function App() {
         }
       };
       setGoogleLang();
+    } else if (lang === 'en') {
+      clearTranslationCookies();
     }
   }, []);
 
