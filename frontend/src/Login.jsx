@@ -1,12 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Mail, Lock, CircleUserRound, ChevronDown, Phone, Box, MapPin, Search, Scale, FileText, Video, FileCheck, Gavel, BookOpen, Briefcase, Landmark } from "lucide-react";
+import { Mail, Lock, CircleUserRound, ChevronDown, Phone, Box, MapPin, Search, Scale, FileText, Video, FileCheck, Gavel, BookOpen, Briefcase, Landmark, ArrowLeft } from "lucide-react";
 import { toast } from "react-toastify";
 import { authApi } from "./api/authApi";
 import axiosInstance from "./api/axiosConfig";
 import { useAuth } from "./context/AuthContext";
 import { auth, googleProvider, signInWithPopup, RecaptchaVerifier, signInWithPhoneNumber } from "./config/firebase";
 import "./Login.css";
+
+const getLandingPageUrl = () => {
+  if (import.meta.env.VITE_LANDING_PAGE_URL) {
+    return import.meta.env.VITE_LANDING_PAGE_URL;
+  }
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:5174";
+    }
+  }
+  return "https://utkalodr.com";
+};
 
 export default function Login({ getRole }) {
   const navigate = useNavigate();
@@ -341,8 +354,12 @@ export default function Login({ getRole }) {
 
         {/* LEFT SIDE - Info Section */}
         <div className="login-left">
-          {/* Top: Logo */}
+          {/* Top: Logo & Back Button */}
           <div className="left-top">
+            <a href={getLandingPageUrl()} className="back-home" title="Go to Utkal ODR Landing Page">
+              <ArrowLeft size={16} />
+              <span>Back to Landing Page</span>
+            </a>
             <div className="brand-header-light">
               <img
                 src="/logo.png"
