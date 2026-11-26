@@ -169,32 +169,29 @@
 .left-top {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
   animation: fadeIn 0.6s ease-out forwards;
 }
 
 .back-home {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  color: rgba(255, 255, 255, 0.85);
+  gap: 0.4rem;
+  color: rgba(255, 255, 255, 0.82);
   text-decoration: none;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 500;
   transition: all 0.2s ease;
   cursor: pointer;
   width: fit-content;
-  background: rgba(255, 255, 255, 0.12);
-  padding: 8px 16px;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
+  background: transparent;
+  padding: 0;
+  border: none;
 }
 
 .back-home:hover {
   color: #ffffff;
-  background: rgba(255, 255, 255, 0.22);
-  border-color: rgba(255, 255, 255, 0.4);
+  background: transparent;
   transform: translateX(-3px);
 }
 

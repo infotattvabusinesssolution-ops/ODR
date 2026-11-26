@@ -361,13 +361,13 @@ export default function Login({ getRole }) {
               href={getLandingPageUrl()}
               className="back-home"
               data-no-lang="true"
-              title="Go to Utkal ODR Landing Page"
+              title="Back to Landing Page"
               onClick={() => {
                 clearTranslationCookies();
               }}
             >
               <ArrowLeft size={16} />
-              <span>Back to Landing Page</span>
+              <span>Back</span>
             </a>
             <div className="brand-header-light">
               <img
