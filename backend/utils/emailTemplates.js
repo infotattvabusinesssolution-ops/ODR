@@ -100,7 +100,7 @@ function disputeFilerAcknowledgmentTemplate({
             </tr>
             <tr>
               <td style="padding:8px 0; color:#64748b; border-top:1px solid #f1f5f9;"><b>Claim Amount:</b></td>
-              <td style="padding:8px 0; color:#334155; border-top:1px solid #f1f5f9;">₹${disputeAmount || "Not specified"}</td>
+              <td style="padding:8px 0; color:#334155; border-top:1px solid #f1f5f9;">${disputeAmount === "NA" || disputeAmount === "N/A" ? "NA" : (disputeAmount && String(disputeAmount).startsWith("₹") ? disputeAmount : (disputeAmount ? `₹${disputeAmount}` : "Not specified"))}</td>
             </tr>
             <tr>
               <td style="padding:8px 0; color:#64748b; border-top:1px solid #f1f5f9;"><b>Opposite Party:</b></td>
@@ -180,7 +180,7 @@ function adminDisputeAlertTemplate({
           </tr>
           <tr>
             <td style="padding:8px 12px; color:#64748b; border-bottom:1px solid #e2e8f0;"><b>Claim Amount:</b></td>
-            <td style="padding:8px 12px; color:#047857; font-weight:bold; border-bottom:1px solid #e2e8f0;">₹${disputeAmount || "Not Specified"}</td>
+            <td style="padding:8px 12px; color:#047857; font-weight:bold; border-bottom:1px solid #e2e8f0;">${disputeAmount === "NA" || disputeAmount === "N/A" ? "NA" : (disputeAmount && String(disputeAmount).startsWith("₹") ? disputeAmount : (disputeAmount ? `₹${disputeAmount}` : "Not Specified"))}</td>
           </tr>
           <tr>
             <td style="padding:8px 12px; color:#64748b; border-bottom:1px solid #e2e8f0;"><b>Filing Date:</b></td>
@@ -333,7 +333,7 @@ function disputeNoticeRespondentTemplate({
       { label: "Claimant", value: customerName || "N/A" },
       { label: "Dispute Category", value: disputeType || "General" },
       { label: "Dispute Title", value: disputeName || "Dispute Filing" },
-      { label: "Claim Amount", value: disputeAmount ? `₹${disputeAmount}` : "Not specified" },
+      { label: "Claim Amount", value: disputeAmount === "NA" || disputeAmount === "N/A" ? "NA" : (disputeAmount ? (String(disputeAmount).startsWith("₹") ? disputeAmount : `₹${disputeAmount}`) : "Not specified") },
       { label: "Registered On", value: createdAt },
     ],
     highlightBoxHtml: `

@@ -237,6 +237,7 @@ export default function CaseFile({ onClose, onSuccess }) {
                     <option value="AmountOneCror">Less than ₹1 Cr</option>
                     <option value="AmountFiveCror">₹1 Cr to ₹5 Cr</option>
                     <option value="AmountAboveCror">Above ₹5 Cr</option>
+                    <option value="NA">NA</option>
                   </select>
                 </div>
               </div>

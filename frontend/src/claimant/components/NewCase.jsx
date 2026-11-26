@@ -212,6 +212,7 @@ export default function NewCase() {
               <option value="AmountOneCror">Less than ₹1 Cr</option>
               <option value="AmountFiveCror">₹1 Cr to ₹5 Cr</option>
               <option value="AmountAboveCror">Above ₹5 Cr</option>
+              <option value="NA">NA</option>
             </select>
           </div>
 

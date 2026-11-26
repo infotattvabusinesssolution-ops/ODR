@@ -173,7 +173,7 @@ export default function CaseStatusTracking() {
                     </div>
                     <div className="meta-item">
                       <DollarSign size={16} className="meta-icon" />
-                      <span>Amount: <strong>₹{caseItem.DisputeAmount || "N/A"}</strong></span>
+                      <span>Amount: <strong>{caseItem.DisputeAmount === "NA" || caseItem.DisputeAmount === "N/A" ? "NA" : (caseItem.DisputeAmount && String(caseItem.DisputeAmount).startsWith("₹") ? caseItem.DisputeAmount : `₹${caseItem.DisputeAmount || "N/A"}`)}</strong></span>
                     </div>
                     <div className="meta-item">
                       <Calendar size={16} className="meta-icon" />

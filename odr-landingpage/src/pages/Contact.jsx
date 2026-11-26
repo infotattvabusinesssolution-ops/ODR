@@ -502,6 +502,7 @@ function Contact() {
                       <option value="₹1,00,000 - ₹5,00,000">₹1,00,000 - ₹5,00,000</option>
                       <option value="₹5,00,000 - ₹25,00,000">₹5,00,000 - ₹25,00,000</option>
                       <option value="Above ₹25,00,000">Above ₹25,00,000</option>
+                      <option value="NA">NA</option>
                     </select>
                   </div>
 
