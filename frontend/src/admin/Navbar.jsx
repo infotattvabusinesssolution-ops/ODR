@@ -23,6 +23,7 @@ import {
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from 'react-toastify';
+import { useAuth } from "../context/AuthContext";
 import { clearTranslationCookies } from "../utils/translationUtils";
 import axiosInstance from "../api/axiosConfig";
 import "../components/Navbar.css";
@@ -30,6 +31,7 @@ import "../components/Navbar.css";
 export default function Navbar({ isOpen, setIsOpen }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { logout } = useAuth();
   const [isClick, setIsClick] = useState(false);
   const [isMobile] = useState(window.innerWidth <= 480);
   const [data, setData] = useState(null);
@@ -161,12 +163,13 @@ export default function Navbar({ isOpen, setIsOpen }) {
 
   const handleLogOut = () => {
     toast.success("Logged out successfully!");
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("userEmail");
-    localStorage.removeItem("userRole");
-    localStorage.removeItem("username");
+    if (logout) {
+      logout();
+    } else {
+      localStorage.clear();
+    }
     clearTranslationCookies();
-    navigate("/login");
+    navigate("/login", { replace: true });
   };
 
   const getInitials = (name) => {

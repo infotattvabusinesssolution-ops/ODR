@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import Navbar from "./Navbar";
 import Dashboard from "./component/Dashboard";
 import Notifications from "./component/Notifications";
@@ -20,10 +20,19 @@ import LegalAiHub from "../components/LegalAiHub";
 import GoogleMeet from "../components/GoogleMeet/GoogleMeet";
 
 export default function Admin() {
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth <= 768 : false);
   const location = useLocation();
   const isMeetRoute = location.pathname.includes("/meet") || location.pathname.includes("/online-meeting");
+
+  useEffect(() => {
+    const token = localStorage.getItem("authToken") || localStorage.getItem("token");
+    const role = localStorage.getItem("userRole");
+    if (!token || role !== "admin") {
+      navigate("/login", { replace: true });
+    }
+  }, [navigate]);
 
   useEffect(() => {
     const handleResize = () => {

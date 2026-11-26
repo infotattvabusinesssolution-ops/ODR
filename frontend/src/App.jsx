@@ -11,6 +11,7 @@ import Neutral from "./neutral/Neutral";
 import Register from "./Register";
 import LegalAiHub from "./components/LegalAiHub";
 import GoogleMeet from "./components/GoogleMeet/GoogleMeet";
+import ProtectedRoute from "./components/ProtectedRoute";
 import { Agentation } from "agentation";
 import { ALLOWED_LANGUAGES, clearTranslationCookies } from "./utils/translationUtils";
 
@@ -79,10 +80,38 @@ function App() {
           path="/login"
           element={<Login getRole={getRole} role={role} />}
         />
-        <Route path="/admin/*" element={<Admin />} />
-        <Route path="/claimant/*" element={<Claimant />} />
-        <Route path="/respondent/*" element={<Respondent />} />
-        <Route path="/neutral/*" element={<Neutral />} />
+        <Route
+          path="/admin/*"
+          element={
+            <ProtectedRoute allowedRole="admin">
+              <Admin />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/claimant/*"
+          element={
+            <ProtectedRoute allowedRole="claimant">
+              <Claimant />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/respondent/*"
+          element={
+            <ProtectedRoute allowedRole="respondent">
+              <Respondent />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/neutral/*"
+          element={
+            <ProtectedRoute allowedRole="neutral">
+              <Neutral />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/legal-ai" element={<LegalAiHub />} />
         <Route path="/meet" element={<GoogleMeet />} />
         <Route path="/meet/:roomId" element={<GoogleMeet />} />

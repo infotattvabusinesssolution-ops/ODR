@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import Navbar from "./Navbar";
 import Dashboard from "./components/Dashboard";
 import Notifications from "./components/Notifications";
@@ -15,8 +15,17 @@ import Communication from "./components/Communication";
 import SayaCaseAssistant from "../components/SayaCaseAssistant";
 
 export default function Respondent() {
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== "undefined" ? window.innerWidth <= 768 : false);
+
+  useEffect(() => {
+    const token = localStorage.getItem("authToken") || localStorage.getItem("token");
+    const role = localStorage.getItem("userRole");
+    if (!token || role !== "respondent") {
+      navigate("/login", { replace: true });
+    }
+  }, [navigate]);
 
   useEffect(() => {
     const handleResize = () => {
